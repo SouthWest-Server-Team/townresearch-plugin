@@ -18,15 +18,15 @@ public class TownResearchPlugin extends JavaPlugin {
 
         dataManager = new TownDataManager(new java.io.File(getDataFolder(), "data"), getLogger());
 
+        SlimefunBridge sfBridge = new SlimefunBridge(getLogger());
         ResearchGuiListener guiListener = new ResearchGuiListener(this, maxLabs);
-        new ResearchCommand(this, guiListener, maxLabs).register();
+        new ResearchCommand(this, guiListener, sfBridge, maxLabs).register();
 
         // Load persisted researchers into memory
         for (String townName : dataManager.loadAll(maxLabs).keySet()) {
             guiListener.loadResearchers(townName);
         }
 
-        SlimefunBridge sfBridge = new SlimefunBridge(getLogger());
         scheduler = new ResearchScheduler(this, sfBridge, maxLabs);
         scheduler.start();
         getServer().getPluginManager().registerEvents(scheduler, this);

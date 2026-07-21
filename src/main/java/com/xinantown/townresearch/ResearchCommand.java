@@ -19,11 +19,14 @@ public class ResearchCommand implements CommandExecutor {
 
     private final TownResearchPlugin plugin;
     private final ResearchGuiListener guiListener;
+    private final SlimefunBridge sfBridge;
     private final int defaultMaxLabs;
 
-    public ResearchCommand(TownResearchPlugin plugin, ResearchGuiListener guiListener, int defaultMaxLabs) {
+    public ResearchCommand(TownResearchPlugin plugin, ResearchGuiListener guiListener,
+                           SlimefunBridge sfBridge, int defaultMaxLabs) {
         this.plugin = plugin;
         this.guiListener = guiListener;
+        this.sfBridge = sfBridge;
         this.defaultMaxLabs = defaultMaxLabs;
     }
 
@@ -194,6 +197,11 @@ public class ResearchCommand implements CommandExecutor {
         }
 
         String sfKey = args[1];
+
+        if (!sfBridge.exists(sfKey)) {
+            player.sendMessage("§c未知的科技: " + sfKey);
+            return true;
+        }
 
         if (tr.isCompleted(sfKey)) {
             player.sendMessage("§e该科技已完成研究。");

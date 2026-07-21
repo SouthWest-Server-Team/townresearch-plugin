@@ -71,11 +71,17 @@ public class ResearchGuiListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        // Detect Slimefun guide inventory by class name (avoid fragile title matching)
+        // Detect Slimefun guide inventory by scanning class hierarchy
         Inventory inv = event.getInventory();
         if (inv.getHolder() == null) return;
-        String holderClass = inv.getHolder().getClass().getName();
-        if (!holderClass.contains("slimefun") || !holderClass.contains("guide")) return;
+        boolean isGuide = false;
+        Class<?> clazz = inv.getHolder().getClass();
+        while (clazz != null && clazz != Object.class) {
+            String name = clazz.getName().toLowerCase();
+            if (name.contains("slimefun") && name.contains("guide")) { isGuide = true; break; }
+            clazz = clazz.getSuperclass();
+        }
+        if (!isGuide) return;
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null) return;

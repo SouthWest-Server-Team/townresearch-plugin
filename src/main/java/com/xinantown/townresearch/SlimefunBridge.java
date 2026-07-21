@@ -45,6 +45,11 @@ public class SlimefunBridge {
     public void grantResearch(Player player, String sfKey) { setResearch(player, sfKey, true); }
     public void revokeResearch(Player player, String sfKey) { setResearch(player, sfKey, false); }
 
+    public boolean exists(String sfKey) {
+        if (!available) return false;
+        try { return getResearchByKey(sfKey) != null; } catch (Exception e) { return false; }
+    }
+
     private Object getResearchByKey(String sfKey) throws Exception {
         var registry = Class.forName("io.github.thebusybiscuit.slimefun4.implementation.Slimefun")
                 .getMethod("getRegistry").invoke(null);
