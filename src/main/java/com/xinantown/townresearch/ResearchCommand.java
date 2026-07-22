@@ -13,7 +13,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import java.util.Map;
+import java.util.*;
 
 public class ResearchCommand implements CommandExecutor {
 
@@ -59,6 +59,8 @@ public class ResearchCommand implements CommandExecutor {
             case "unset" -> handleUnset(player);
             case "list" -> handleList(player);
             case "start" -> handleStart(player, args);
+            case "pause" -> handlePause(player);
+            case "resume" -> handleResume(player);
             case "researcher" -> handleResearcher(player, args);
             default -> { sendHelp(player); yield true; }
         };
@@ -237,12 +239,58 @@ public class ResearchCommand implements CommandExecutor {
         return true;
     }
 
+    private boolean handlePause(Player player) {
+        Town town = checkMayor(player);
+        if (town == null) return true;
+
+        TownResearch tr = getTownResearch(player);
+        if (tr == null) return true;
+
+        TownBlock tb = TownyAPI.getInstance().getTownBlock(player.getLocation());
+        if (tb == null) { player.sendMessage("§c你不在任何地块上！"); return true; }
+
+        ResearchLab lab = new ResearchLab(tb.getWorld().getName(), tb.getX(), tb.getZ());
+        if (!tr.getActiveProjects().containsKey(lab)) {
+            player.sendMessage("§c此研究所没有进行中的项目。");
+            return true;
+        }
+
+        tr.pauseProject(lab);
+        plugin.getDataManager().save(town.getName(), tr);
+        player.sendMessage("§a研究项目已暂停。");
+        return true;
+    }
+
+    private boolean handleResume(Player player) {
+        Town town = checkMayor(player);
+        if (town == null) return true;
+
+        TownResearch tr = getTownResearch(player);
+        if (tr == null) return true;
+
+        TownBlock tb = TownyAPI.getInstance().getTownBlock(player.getLocation());
+        if (tb == null) { player.sendMessage("§c你不在任何地块上！"); return true; }
+
+        ResearchLab lab = new ResearchLab(tb.getWorld().getName(), tb.getX(), tb.getZ());
+        if (!tr.getPausedProjects().containsKey(lab)) {
+            player.sendMessage("§c此研究所没有暂停中的项目。");
+            return true;
+        }
+
+        tr.resumeProject(lab);
+        plugin.getDataManager().save(town.getName(), tr);
+        player.sendMessage("§a研究项目已恢复！");
+        return true;
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage("§6==== 城邦研究所 ====");
         player.sendMessage("§6/town research set §7- 标记脚下地块为研究所");
         player.sendMessage("§6/town research unset §7- 取消研究所标记");
         player.sendMessage("§6/town research list §7- 查看研究所和研究进度");
         player.sendMessage("§6/town research start <科技> §7- 开始研究");
+        player.sendMessage("§6/town research pause §7- 暂停研究（市长）");
+        player.sendMessage("§6/town research resume §7- 恢复暂停的研究");
         player.sendMessage("§6/town research researcher add/remove <玩家> §7- 管理研究员");
     }
 }
