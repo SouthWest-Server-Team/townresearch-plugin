@@ -20,14 +20,16 @@ public class ResearchGuiListener implements Listener {
 
     private final TownResearchPlugin plugin;
     private final TownDataManager dataManager;
+    private final ResearchService service;
     private final int maxLabs;
 
     // Town name → set of uuids who are researchers (loaded from data.yml)
     private final Map<String, Set<UUID>> researchers = new HashMap<>();
 
-    public ResearchGuiListener(TownResearchPlugin plugin, int maxLabs) {
+    public ResearchGuiListener(TownResearchPlugin plugin, SlimefunBridge sfBridge, int maxLabs) {
         this.plugin = plugin;
         this.dataManager = plugin.getDataManager();
+        this.service = new ResearchService(dataManager, sfBridge, maxLabs);
         this.maxLabs = maxLabs;
     }
 
@@ -111,37 +113,15 @@ public class ResearchGuiListener implements Listener {
         String sfKey = extractResearchKey(clicked);
         if (sfKey == null) return;
 
-        // Check if already completed
-        if (tr.isCompleted(sfKey)) {
+        String error = service.startResearch(town, player, sfKey);
+        if (error != null) {
             event.setCancelled(true);
-            player.sendMessage("§e此科技已完成研究。");
+            player.sendMessage(error);
             return;
         }
-
-        // Find free lab
-        var freeLab = tr.findFreeLab();
-
-        if (freeLab == null) {
-            player.sendMessage("§c所有研究所都正在使用中！");
-            return;
-        }
-
-        // Start research
-        double cost = TownResearchPlugin.BASE_RESEARCH_COST;
-        double balance = town.getAccount().getHoldingBalance();
-        if (balance < cost) {
-            event.setCancelled(true);
-            player.sendMessage("§c城邦银行余额不足！需要 $" + String.format("%.0f", cost));
-            return;
-        }
-        town.getAccount().withdraw(cost, "研究项目: " + sfKey);
-
-        tr.startProject(freeLab, sfKey, TownResearchPlugin.BASE_RESEARCH_MINUTES);
-        dataManager.save(town.getName(), tr);
 
         player.closeInventory();
-        player.sendMessage("§a研究项目 §6" + sfKey + " §a已启动！费用: $" +
-                String.format("%.0f", cost));
+        player.sendMessage(ResearchService.successMessage(sfKey));
     }
 
     private String extractResearchKey(ItemStack item) {

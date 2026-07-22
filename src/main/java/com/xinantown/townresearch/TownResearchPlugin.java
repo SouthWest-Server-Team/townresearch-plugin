@@ -19,7 +19,7 @@ public class TownResearchPlugin extends JavaPlugin {
         dataManager = new TownDataManager(new java.io.File(getDataFolder(), "data"), getLogger());
 
         SlimefunBridge sfBridge = new SlimefunBridge(getLogger());
-        ResearchGuiListener guiListener = new ResearchGuiListener(this, maxLabs);
+        ResearchGuiListener guiListener = new ResearchGuiListener(this, sfBridge, maxLabs);
         new ResearchCommand(this, guiListener, sfBridge, maxLabs).register();
 
         // Load persisted researchers into memory

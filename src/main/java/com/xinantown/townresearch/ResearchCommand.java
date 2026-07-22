@@ -19,14 +19,14 @@ public class ResearchCommand implements CommandExecutor {
 
     private final TownResearchPlugin plugin;
     private final ResearchGuiListener guiListener;
-    private final SlimefunBridge sfBridge;
+    private final ResearchService service;
     private final int defaultMaxLabs;
 
     public ResearchCommand(TownResearchPlugin plugin, ResearchGuiListener guiListener,
                            SlimefunBridge sfBridge, int defaultMaxLabs) {
         this.plugin = plugin;
         this.guiListener = guiListener;
-        this.sfBridge = sfBridge;
+        this.service = new ResearchService(plugin.getDataManager(), sfBridge, defaultMaxLabs);
         this.defaultMaxLabs = defaultMaxLabs;
     }
 
@@ -182,62 +182,17 @@ public class ResearchCommand implements CommandExecutor {
             return true;
         }
 
-        TownResearch tr = getTownResearch(player);
-        if (tr == null) return true;
-
         Town town = TownyAPI.getInstance().getTown(player);
-        if (town != null && !guiListener.isResearcher(town.getName(), player)) {
+        if (town == null) { player.sendMessage("§c你不属于任何城邦！"); return true; }
+        if (!guiListener.isResearcher(town.getName(), player)) {
             player.sendMessage("§c只有市长或研究员才能启动研究！");
             return true;
         }
 
-        if (tr.getLabs().isEmpty()) {
-            player.sendMessage("§c城邦没有研究所！先用 /town research set 标记。");
-            return true;
-        }
+        String error = service.startResearch(town, player, args[1]);
+        if (error != null) { player.sendMessage(error); return true; }
 
-        String sfKey = args[1];
-
-        if (!sfBridge.exists(sfKey)) {
-            player.sendMessage("§c未知的科技: " + sfKey);
-            return true;
-        }
-
-        if (tr.isCompleted(sfKey)) {
-            player.sendMessage("§e该科技已完成研究。");
-            return true;
-        }
-
-        if (tr.isResearching(sfKey)) {
-            player.sendMessage("§e该科技已在研究中。");
-            return true;
-        }
-
-        // Find a free lab
-        var freeLab = tr.findFreeLab();
-
-        if (freeLab == null) {
-            player.sendMessage("§c所有研究所都正在使用中！等待当前项目完成。");
-            return true;
-        }
-
-        // Start research with default cost/duration
-        town = TownyAPI.getInstance().getTown(player);
-        double balance = town.getAccount().getHoldingBalance();
-        if (balance < TownResearchPlugin.BASE_RESEARCH_COST) {
-            player.sendMessage("§c城邦银行余额不足！需要 $" +
-                    String.format("%.0f", TownResearchPlugin.BASE_RESEARCH_COST));
-            return true;
-        }
-        town.getAccount().withdraw(TownResearchPlugin.BASE_RESEARCH_COST,
-                "研究项目: " + sfKey);
-
-        tr.startProject(freeLab, sfKey, TownResearchPlugin.BASE_RESEARCH_MINUTES);
-        plugin.getDataManager().save(town.getName(), tr);
-
-        player.sendMessage("§a研究项目 §6" + sfKey + " §a已启动！费用: $" +
-                String.format("%.0f", TownResearchPlugin.BASE_RESEARCH_COST));
-        player.sendMessage("§7预计完成时间: §e" + TownResearchPlugin.BASE_RESEARCH_MINUTES + " §7分钟");
+        player.sendMessage(ResearchService.successMessage(args[1]));
         return true;
     }
 
