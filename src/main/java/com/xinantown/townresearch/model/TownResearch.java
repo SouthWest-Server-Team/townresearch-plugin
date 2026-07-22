@@ -51,6 +51,25 @@ public class TownResearch {
 
     public Map<ResearchLab, ResearchProject> getActiveProjects() { return Collections.unmodifiableMap(activeProjects); }
 
+    public void pauseProject(ResearchLab lab) {
+        ResearchProject p = activeProjects.remove(lab);
+        if (p != null) pausedProjects.put(lab, p);
+    }
+
+    public void resumeProject(ResearchLab lab) {
+        ResearchProject p = pausedProjects.remove(lab);
+        if (p != null) {
+            long elapsed = System.currentTimeMillis() - p.startedAt();
+            long remainingMs = Math.max(0, p.durationMinutes() * 60000 - elapsed);
+            long remainingMin = Math.max(1, remainingMs / 60000);
+            activeProjects.put(lab, new ResearchProject(p.sfKey(), System.currentTimeMillis(), remainingMin));
+        }
+    }
+
+    public boolean isPaused(ResearchLab lab) { return pausedProjects.containsKey(lab); }
+
+    public Map<ResearchLab, ResearchProject> getPausedProjects() { return Collections.unmodifiableMap(pausedProjects); }
+
     public void startProject(ResearchLab lab, String sfKey, long durationMinutes) {
         if (!labs.contains(lab)) throw new IllegalArgumentException("Lab not registered for " + townName);
         if (activeProjects.containsKey(lab)) throw new IllegalStateException("Lab already has an active project");

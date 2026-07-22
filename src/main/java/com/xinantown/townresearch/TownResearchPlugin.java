@@ -19,7 +19,10 @@ public class TownResearchPlugin extends JavaPlugin {
         dataManager = new TownDataManager(new java.io.File(getDataFolder(), "data"), getLogger());
 
         SlimefunBridge sfBridge = new SlimefunBridge(getLogger());
-        ResearchGuiListener guiListener = new ResearchGuiListener(this, sfBridge, maxLabs);
+        sfBridge.dumpKeys();
+
+        ResearchService service = new ResearchService(dataManager, sfBridge, maxLabs);
+        ResearchGuiListener guiListener = new ResearchGuiListener(dataManager, maxLabs);
         new ResearchCommand(this, guiListener, sfBridge, maxLabs).register();
 
         // Load persisted researchers into memory
@@ -30,7 +33,9 @@ public class TownResearchPlugin extends JavaPlugin {
         scheduler = new ResearchScheduler(this, sfBridge, maxLabs);
         scheduler.start();
         getServer().getPluginManager().registerEvents(scheduler, this);
-        getServer().getPluginManager().registerEvents(guiListener, this);
+
+        // Intercept Slimefun PlayerResearchEvent (replaces GUI click interception)
+        new ResearchEventListener(this, service, guiListener).register();
 
         getLogger().info("TownResearch enabled. Max labs per town: " + maxLabs);
     }

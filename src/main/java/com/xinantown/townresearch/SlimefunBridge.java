@@ -2,7 +2,6 @@ package com.xinantown.townresearch;
 
 import org.bukkit.entity.Player;
 
-import java.util.Set;
 import java.util.logging.Logger;
 
 /**
@@ -26,6 +25,24 @@ public class SlimefunBridge {
 
     public boolean isAvailable() { return available; }
 
+    public void dumpKeys() {
+        if (!available) return;
+        try {
+            var registry = Class.forName("io.github.thebusybiscuit.slimefun4.implementation.Slimefun")
+                    .getMethod("getRegistry").invoke(null);
+            var researches = (java.util.List<?>) registry.getClass().getMethod("getResearches").invoke(registry);
+            logger.info("[SlimefunBridge] Registered researches: " + researches.size());
+            int count = 0;
+            for (Object r : researches) {
+                if (count++ >= 10) { logger.info("[SlimefunBridge] ... and " + (researches.size() - 10) + " more"); break; }
+                String key = r.getClass().getMethod("getKey").invoke(r).toString();
+                logger.info("[SlimefunBridge]   key=" + key);
+            }
+        } catch (Exception e) {
+            logger.warning("[SlimefunBridge] Failed to dump keys: " + e.getMessage());
+        }
+    }
+
     public void setResearch(Player player, String sfKey, boolean grant) {
         if (!available) return;
         try {
@@ -47,16 +64,37 @@ public class SlimefunBridge {
 
     public boolean exists(String sfKey) {
         if (!available) return false;
-        try { return getResearchByKey(sfKey) != null; } catch (Exception e) { return false; }
+        try {
+            if (getResearchByKey(sfKey) != null) return true;
+            return getResearchByKey("slimefun:" + sfKey) != null;
+        } catch (Exception e) { return false; }
+    }
+
+    /** Extract research key from a Slimefun guide ItemStack via Slimefun API. */
+    public String extractKeyFromItem(org.bukkit.inventory.ItemStack item) {
+        if (!available) return null;
+        try {
+            var sfItem = Class.forName("io.github.thebusybiscuit.slimefun4.api.items.SlimefunItem")
+                    .getMethod("getByItem", org.bukkit.inventory.ItemStack.class)
+                    .invoke(null, item);
+            if (sfItem == null) return null;
+            var research = sfItem.getClass().getMethod("getResearch").invoke(sfItem);
+            if (research == null) return null;
+            return research.getClass().getMethod("getKey").invoke(research).toString();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Object getResearchByKey(String sfKey) throws Exception {
         var registry = Class.forName("io.github.thebusybiscuit.slimefun4.implementation.Slimefun")
                 .getMethod("getRegistry").invoke(null);
-        var researches = (Set<?>) registry.getClass().getMethod("getResearches").invoke(registry);
+        var researches = (java.util.List<?>) registry.getClass().getMethod("getResearches").invoke(registry);
         for (Object r : researches) {
             String key = r.getClass().getMethod("getKey").invoke(r).toString();
-            if (key.equals(sfKey)) return r;
+            // Match against full key (slimefun:xxx) or just the key part (xxx)
+            if (key.equalsIgnoreCase(sfKey)) return r;
+            if (key.contains(":") && key.substring(key.indexOf(':') + 1).equalsIgnoreCase(sfKey)) return r;
         }
         return null;
     }
