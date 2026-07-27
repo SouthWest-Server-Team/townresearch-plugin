@@ -51,11 +51,15 @@ public class SlimefunBridge {
 
             var profile = Class.forName("io.github.thebusybiscuit.slimefun4.api.player.PlayerProfile")
                     .getMethod("get", Player.class).invoke(null, player);
-            profile.getClass().getMethod("setResearched", research.getClass().getSuperclass(), boolean.class)
-                    .invoke(profile, research, grant);
+            // Use Research.class directly, not getSuperclass()
+            profile.getClass().getMethod("setResearched",
+                    Class.forName("io.github.thebusybiscuit.slimefun4.api.researches.Research"),
+                    boolean.class).invoke(profile, research, grant);
+            // Mark profile dirty so changes persist
+            profile.getClass().getMethod("markDirty").invoke(profile);
         } catch (Exception e) {
             logger.warning("Failed to " + (grant ? "grant" : "revoke") +
-                    " research " + sfKey + " to/from " + player.getName());
+                    " research " + sfKey + " to/from " + player.getName() + ": " + e.getMessage());
         }
     }
 
