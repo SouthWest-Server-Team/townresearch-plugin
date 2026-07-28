@@ -8,9 +8,12 @@ public class TownResearchPlugin extends JavaPlugin {
     public static final long BASE_RESEARCH_MINUTES = 60;
 
     private TownDataManager dataManager;
-    private ResearchScheduler scheduler;
+    private ResearchLifecycleManager lifecycleManager;
+    private ResearchBossBarManager bossBarManager;
     private ResearchSettings researchSettings;
     private int maxLabs = 5;
+    private int lifecycleTaskId = -1;
+    private int displayTaskId = -1;
 
     @Override
     public void onEnable() {
@@ -33,9 +36,17 @@ public class TownResearchPlugin extends JavaPlugin {
             guiListener.loadResearchers(townName);
         }
 
-        scheduler = new ResearchScheduler(this, sfBridge, researchSettings);
-        scheduler.start();
-        getServer().getPluginManager().registerEvents(scheduler, this);
+        // Research lifecycle — completion checks + player join/leave events
+        lifecycleManager = new ResearchLifecycleManager(this, sfBridge, researchSettings);
+        getServer().getPluginManager().registerEvents(lifecycleManager, this);
+        lifecycleTaskId = getServer().getScheduler().runTaskTimer(
+                this, lifecycleManager::checkCompletions, 600L, 600L).getTaskId();
+
+        // Boss bar progress display — refresh bars + player move tracking
+        bossBarManager = new ResearchBossBarManager(this, researchSettings);
+        getServer().getPluginManager().registerEvents(bossBarManager, this);
+        displayTaskId = getServer().getScheduler().runTaskTimer(
+                this, bossBarManager::refreshBars, 40L, 40L).getTaskId();
 
         // Intercept Slimefun PlayerResearchEvent (replaces GUI click interception)
         new ResearchEventListener(this, service, guiListener).register();
@@ -45,7 +56,9 @@ public class TownResearchPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (scheduler != null) scheduler.stop();
+        if (lifecycleTaskId != -1) getServer().getScheduler().cancelTask(lifecycleTaskId);
+        if (displayTaskId != -1) getServer().getScheduler().cancelTask(displayTaskId);
+        if (bossBarManager != null) bossBarManager.cleanup();
         getLogger().info("TownResearch disabled.");
     }
 
