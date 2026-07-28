@@ -1,6 +1,7 @@
 package com.xinantown.townresearch;
 
 import com.palmergames.bukkit.towny.TownyAPI;
+import com.palmergames.bukkit.towny.event.TownAddResidentEvent;
 import com.palmergames.bukkit.towny.event.TownRemoveResidentEvent;
 import com.palmergames.bukkit.towny.object.Town;
 import com.xinantown.townresearch.model.TownResearch;
@@ -19,6 +20,7 @@ import java.util.UUID;
  * <ul>
  *   <li>30s completion checks — grants completed tech to town residents</li>
  *   <li>PlayerJoinEvent — grants existing tech + processes pending revokes</li>
+ *   <li>TownAddResidentEvent — grants existing tech to newly added residents</li>
  *   <li>TownRemoveResidentEvent — revokes tech from leaving residents</li>
  * </ul>
  */
@@ -108,6 +110,14 @@ public class ResearchLifecycleManager implements Listener {
             // Offline: mark for revoke on next login
             tr.addPendingRevoke(uuid);
             dataManager.save(townName, tr);
+        }
+    }
+
+    @EventHandler
+    public void onTownAddResident(TownAddResidentEvent event) {
+        Player player = Bukkit.getPlayer(event.getResident().getUUID());
+        if (player != null && player.isOnline()) {
+            grantTownResearch(player);
         }
     }
 
