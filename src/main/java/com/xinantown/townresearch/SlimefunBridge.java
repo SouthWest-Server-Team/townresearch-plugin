@@ -1,5 +1,6 @@
 package com.xinantown.townresearch;
 
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.util.logging.Logger;
@@ -49,13 +50,25 @@ public class SlimefunBridge {
             var research = getResearchByKey(sfKey);
             if (research == null) return;
 
-            var profile = Class.forName("io.github.thebusybiscuit.slimefun4.api.player.PlayerProfile")
-                    .getMethod("get", Player.class).invoke(null, player);
-            profile.getClass().getMethod("setResearched", research.getClass().getSuperclass(), boolean.class)
+            // 1. Use PlayerProfile.find(OfflinePlayer) returning Optional<PlayerProfile>
+            var playerProfileClass = Class.forName("io.github.thebusybiscuit.slimefun4.api.player.PlayerProfile");
+            var profileOpt = playerProfileClass.getMethod("find", OfflinePlayer.class).invoke(null, player);
+            // Defensive check: skip if profile not found (e.g. player just disconnected)
+            if (!(boolean) profileOpt.getClass().getMethod("isPresent").invoke(profileOpt)) {
+                logger.warning("PlayerProfile not found for " + player.getName() +
+                        " — cannot " + (grant ? "grant" : "revoke") + " research " + sfKey);
+                return;
+            }
+            var profile = profileOpt.getClass().getMethod("get").invoke(profileOpt);
+
+            // 2. Use Research class directly for parameter type (not getSuperclass())
+            var researchClass = Class.forName("io.github.thebusybiscuit.slimefun4.api.researches.Research");
+            profile.getClass().getMethod("setResearched", researchClass, boolean.class)
                     .invoke(profile, research, grant);
         } catch (Exception e) {
             logger.warning("Failed to " + (grant ? "grant" : "revoke") +
-                    " research " + sfKey + " to/from " + player.getName());
+                    " research " + sfKey + " to/from " + player.getName() +
+                    ": " + e.getMessage());
         }
     }
 

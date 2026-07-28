@@ -20,14 +20,16 @@ public class ResearchCommand implements CommandExecutor {
     private final TownResearchPlugin plugin;
     private final ResearchGuiListener guiListener;
     private final ResearchService service;
+    private final ResearchSettings settings;
     private final int defaultMaxLabs;
 
     public ResearchCommand(TownResearchPlugin plugin, ResearchGuiListener guiListener,
-                           SlimefunBridge sfBridge, int defaultMaxLabs) {
+                           SlimefunBridge sfBridge, ResearchSettings settings) {
         this.plugin = plugin;
         this.guiListener = guiListener;
-        this.service = new ResearchService(plugin.getDataManager(), sfBridge, defaultMaxLabs);
-        this.defaultMaxLabs = defaultMaxLabs;
+        this.service = new ResearchService(plugin.getDataManager(), sfBridge, settings);
+        this.settings = settings;
+        this.defaultMaxLabs = settings.getMaxLabs();
     }
 
     /**
@@ -62,6 +64,7 @@ public class ResearchCommand implements CommandExecutor {
             case "pause" -> handlePause(player);
             case "resume" -> handleResume(player);
             case "researcher" -> handleResearcher(player, args);
+            case "buyspeed" -> handleBuySpeed(player);
             default -> { sendHelp(player); yield true; }
         };
     }
@@ -283,14 +286,58 @@ public class ResearchCommand implements CommandExecutor {
         return true;
     }
 
+    private boolean handleBuySpeed(Player player) {
+        Town town = TownyAPI.getInstance().getTown(player);
+        if (town == null) {
+            player.sendMessage("§c你不属于任何城邦！");
+            return true;
+        }
+        if (!town.hasMayor() || !town.getMayor().getUUID().equals(player.getUniqueId())) {
+            player.sendMessage("§c只有市长才能购买加速！");
+            return true;
+        }
+
+        TownResearch tr = plugin.getDataManager().load(town.getName(), defaultMaxLabs);
+        if (tr == null) tr = new TownResearch(town.getName(), defaultMaxLabs);
+
+        int currentLevel = tr.getPaidSpeedLevel();
+        int maxLevel = settings.getPaidSpeedMaxLevel();
+
+        if (currentLevel >= maxLevel) {
+            player.sendMessage("§c已达成加速等级上限（Lv." + maxLevel + "），无法继续升级！");
+            return true;
+        }
+
+        int nextLevel = currentLevel + 1;
+        double cost = settings.getPaidSpeedLevelCost(nextLevel);
+        double nextMultiplier = settings.getPaidSpeedLevelMultiplier(nextLevel);
+        double bankBalance = town.getAccount().getHoldingBalance();
+
+        if (bankBalance < cost) {
+            player.sendMessage("§c城邦银行余额不足！升级到 Lv." + nextLevel +
+                    " 需要 $" + String.format("%.0f", cost) +
+                    "，当前仅有 $" + String.format("%.0f", bankBalance));
+            return true;
+        }
+
+        town.getAccount().withdraw(cost, "研究加速 Lv." + nextLevel);
+        tr.setPaidSpeedLevel(nextLevel);
+        plugin.getDataManager().save(town.getName(), tr);
+
+        player.sendMessage("§a研究加速已升级到 Lv." + nextLevel +
+                "（速率: §e" + String.format("%.1f", nextMultiplier) + "x§a），消耗 $" + String.format("%.0f", cost));
+        return true;
+    }
+
     private void sendHelp(Player player) {
         player.sendMessage("§6==== 城邦研究所 ====");
         player.sendMessage("§6/town research set §7- 标记脚下地块为研究所");
         player.sendMessage("§6/town research unset §7- 取消研究所标记");
         player.sendMessage("§6/town research list §7- 查看研究所和研究进度");
-        player.sendMessage("§6/town research start <科技> §7- 开始研究");
+        player.sendMessage("§6/town research start <科技> §7- 开始研究（$" + String.format("%.0f", settings.getBaseCost()) + "）");
         player.sendMessage("§6/town research pause §7- 暂停研究（市长）");
         player.sendMessage("§6/town research resume §7- 恢复暂停的研究");
         player.sendMessage("§6/town research researcher add/remove <玩家> §7- 管理研究员");
+        player.sendMessage("§6/town research buyspeed §7- 购买研究加速等级（市长）");
     }
 }

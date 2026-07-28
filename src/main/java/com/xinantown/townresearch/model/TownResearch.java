@@ -1,5 +1,7 @@
 package com.xinantown.townresearch.model;
 
+import com.xinantown.townresearch.ResearchSettings;
+
 import java.util.*;
 
 /**
@@ -15,6 +17,7 @@ public class TownResearch {
     private final Map<ResearchLab, ResearchProject> pausedProjects = new LinkedHashMap<>();
     private final Set<UUID> researchers = new LinkedHashSet<>();
     private final Set<UUID> pendingRevokes = new LinkedHashSet<>();
+    private int paidSpeedLevel = 0;
 
     public TownResearch(String townName, int maxLabs) {
         this.townName = townName;
@@ -98,11 +101,40 @@ public class TownResearch {
     }
 
     /**
-     * Calculate effective duration with multi-lab acceleration.
+     * Calculate effective duration with multi-lab acceleration and paid speed.
+     * Formula: baseMinutes × researchMultiplier ÷ labSpeedMultiplier ÷ paidSpeedMultiplier
+     *
+     * @param sfKey           the research key
+     * @param baseDurationMinutes the base research time in minutes
+     * @param settings        the research settings (config)
+     * @return effective duration in minutes (minimum 1)
      */
+    public long getEffectiveDuration(String sfKey, long baseDurationMinutes, ResearchSettings settings) {
+        double multiplier = 1.0;
+        double labSpeed = 1.0;
+        double paidMultiplier = 1.0;
+
+        if (settings != null) {
+            multiplier = settings.getResearchMultiplier(sfKey);
+            int n = countLabsResearching(sfKey);
+            labSpeed = settings.calcLabSpeedMultiplier(n);
+            paidMultiplier = settings.getPaidSpeedLevelMultiplier(paidSpeedLevel);
+        } else {
+            // Fallback when no settings available (e.g. unit tests)
+            int n = countLabsResearching(sfKey);
+            if (n > 1) labSpeed = n;
+        }
+
+        double effective = baseDurationMinutes * multiplier / labSpeed / paidMultiplier;
+        return Math.max(1, (long) Math.ceil(effective));
+    }
+
+    /**
+     * @deprecated Use {@link #getEffectiveDuration(String, long, ResearchSettings)} instead.
+     */
+    @Deprecated
     public long getEffectiveDuration(String sfKey, long baseDurationMinutes) {
-        int n = countLabsResearching(sfKey);
-        return n <= 1 ? baseDurationMinutes : Math.max(1, baseDurationMinutes / n);
+        return getEffectiveDuration(sfKey, baseDurationMinutes, null);
     }
 
     // === Completed ===
@@ -129,6 +161,14 @@ public class TownResearch {
     public void addPendingRevoke(UUID uuid) { pendingRevokes.add(uuid); }
     public void removePendingRevoke(UUID uuid) { pendingRevokes.remove(uuid); }
 
+    // === Paid Speed ===
+
+    public int getPaidSpeedLevel() { return paidSpeedLevel; }
+
+    public void setPaidSpeedLevel(int level) {
+        this.paidSpeedLevel = Math.max(0, level);
+    }
+
     // === Convenience ===
 
     /** Find the first lab with no active project. */
@@ -140,15 +180,15 @@ public class TownResearch {
 
     /**
      * Check all active projects for completion. Returns list of newly completed sfKeys.
-     * Uses effective duration for multi-lab acceleration.
+     * Uses effective duration for multi-lab acceleration and paid speed.
      */
-    public List<String> checkCompletions(long nowMs) {
+    public List<String> checkCompletions(long nowMs, ResearchSettings settings) {
         List<String> newlyCompleted = new ArrayList<>();
         var iter = activeProjects.entrySet().iterator();
         while (iter.hasNext()) {
             var e = iter.next();
             ResearchProject p = e.getValue();
-            long effectiveMs = getEffectiveDuration(p.sfKey(), p.durationMinutes()) * 60000;
+            long effectiveMs = getEffectiveDuration(p.sfKey(), p.durationMinutes(), settings) * 60000;
             if (nowMs - p.startedAt() >= effectiveMs) {
                 newlyCompleted.add(p.sfKey());
                 iter.remove();
@@ -161,5 +201,13 @@ public class TownResearch {
             activeProjects.entrySet().removeIf(e -> e.getValue().sfKey().equals(key));
         }
         return newlyCompleted;
+    }
+
+    /**
+     * @deprecated Use {@link #checkCompletions(long, ResearchSettings)} instead.
+     */
+    @Deprecated
+    public List<String> checkCompletions(long nowMs) {
+        return checkCompletions(nowMs, null);
     }
 }

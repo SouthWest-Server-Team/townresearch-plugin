@@ -1,9 +1,9 @@
 package com.xinantown.townresearch;
 
 import com.palmergames.bukkit.towny.TownyAPI;
+import com.palmergames.bukkit.towny.event.TownAddResidentEvent;
 import com.palmergames.bukkit.towny.event.TownRemoveResidentEvent;
 import com.palmergames.bukkit.towny.object.Town;
-import com.xinantown.townresearch.model.ResearchProject;
 import com.xinantown.townresearch.model.TownResearch;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -11,45 +11,49 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Handles research completion checks and member grant/revoke on join/leave.
+ * Manages the full lifecycle of town research:
+ * <ul>
+ *   <li>30s completion checks — grants completed tech to town residents</li>
+ *   <li>PlayerJoinEvent — grants existing tech + processes pending revokes</li>
+ *   <li>TownAddResidentEvent — grants existing tech to newly added residents</li>
+ *   <li>TownRemoveResidentEvent — revokes tech from leaving residents</li>
+ * </ul>
  */
-public class ResearchScheduler implements Listener, Runnable {
+public class ResearchLifecycleManager implements Listener {
 
     private final TownResearchPlugin plugin;
     private final TownDataManager dataManager;
     private final SlimefunBridge sfBridge;
+    private final ResearchSettings settings;
     private final int maxLabs;
-    private int taskId = -1;
 
-    public ResearchScheduler(TownResearchPlugin plugin, SlimefunBridge sfBridge, int maxLabs) {
+    public ResearchLifecycleManager(TownResearchPlugin plugin, SlimefunBridge sfBridge,
+                                     ResearchSettings settings) {
         this.plugin = plugin;
         this.dataManager = plugin.getDataManager();
         this.sfBridge = sfBridge;
-        this.maxLabs = maxLabs;
+        this.settings = settings;
+        this.maxLabs = settings.getMaxLabs();
     }
 
-    public void start() {
-        taskId = Bukkit.getScheduler().runTaskTimer(plugin, this, 600L, 600L).getTaskId(); // every 30 seconds
-        plugin.getLogger().info("Research scheduler started (30s interval).");
-    }
-
-    public void stop() {
-        if (taskId != -1) { Bukkit.getScheduler().cancelTask(taskId); taskId = -1; }
-    }
-
-    @Override
-    public void run() {
+    /**
+     * Check all towns for completed research projects and grant rewards.
+     * Called by the 30-second timer.
+     */
+    public void checkCompletions() {
         if (!sfBridge.isAvailable()) return;
 
-        Map<String, TownResearch> all = dataManager.loadAll(maxLabs);
         long now = System.currentTimeMillis();
+        Map<String, TownResearch> all = dataManager.loadAll(maxLabs);
 
         for (var entry : all.entrySet()) {
             TownResearch tr = entry.getValue();
-            List<String> completed = tr.checkCompletions(now);
+            List<String> completed = tr.checkCompletions(now, settings);
             if (!completed.isEmpty()) {
                 dataManager.save(entry.getKey(), tr);
 
@@ -109,7 +113,18 @@ public class ResearchScheduler implements Listener, Runnable {
         }
     }
 
-    private void grantTownResearch(Player player) {
+    @EventHandler
+    public void onTownAddResident(TownAddResidentEvent event) {
+        Player player = Bukkit.getPlayer(event.getResident().getUUID());
+        if (player != null && player.isOnline()) {
+            grantTownResearch(player);
+        }
+    }
+
+    // === Public API ===
+
+    /** Grant all completed research for the player's town. */
+    public void grantTownResearch(Player player) {
         if (!sfBridge.isAvailable()) return;
 
         Town town = TownyAPI.getInstance().getTown(player);
