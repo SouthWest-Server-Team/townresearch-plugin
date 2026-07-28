@@ -81,6 +81,8 @@ public class TownDataManager {
         for (UUID id : tr.getPendingRevokes()) revokeList.add(id.toString());
         cfg.set("pending_revokes", revokeList);
 
+        cfg.set("paid_speed_level", tr.getPaidSpeedLevel());
+
         try { cfg.save(fileFor(townName)); } catch (IOException e) {
             logger.log(java.util.logging.Level.SEVERE,
                     "Failed to save research data for " + townName, e);
@@ -133,6 +135,8 @@ public class TownDataManager {
         if (revokeList != null) {
             for (String s : revokeList) tr.addPendingRevoke(java.util.UUID.fromString(s));
         }
+
+        tr.setPaidSpeedLevel(cfg.getInt("paid_speed_level", 0));
 
         List<Map<?, ?>> projList = cfg.getMapList("active_projects");
         if (projList != null) {

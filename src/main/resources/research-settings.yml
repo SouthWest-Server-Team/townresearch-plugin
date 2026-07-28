@@ -1,0 +1,347 @@
+# ============================================
+# 研究设置
+# 服主可在此文件中自由调整所有数值
+# ============================================
+
+# 研究基础费用
+base-cost: 500.0
+
+# 研究基础时长（分钟）
+base-minutes: 60
+
+# ============================================
+# 科技时长倍率
+# 格式: "科技Key": 倍率
+# 范围: 0.1 ~ 2.0
+# 倍率越小研究越快，倍率越大研究越慢
+# 基础科技建议 0.1，高级科技用较大值
+# ============================================
+research-multipliers:
+  # ========== 基础工具类 ==========
+  "walking_sticks": 0.1              # Walking Sticks 行走杖
+  "portable_crafter": 0.1            # Portable Crafter 便携工作台
+  "fortune_cookie": 0.1              # Fortune Cookie 幸运饼干
+  "portable_dustbin": 0.1            # Portable Dustbin 便携垃圾桶
+  "meat_jerky": 0.1                  # Jerkys 肉干
+  "monster_jerky": 0.1               # Monster Jerky 怪物肉干
+  "diet_cookie": 0.1                 # Diet Cookie 减肥饼干
+  "duct_tape": 0.1                   # Duct Tape 胶带
+  "tape_measure": 0.1                # Tape Measure 卷尺
+  "climbing_pick": 0.1               # Climbing Pick 攀岩镐
+  "parachute": 0.1                   # Parachute 降落伞
+  "grappling_hook": 0.2              # Grappling Hook 抓钩
+  "first_aid": 0.1                   # First Aid 急救
+  "magic_sugar": 0.1                 # Magic Sugar 魔法糖
+  "magic_eye_of_ender": 0.1          # Magic Eye of Ender 魔法末影之眼
+
+  # ========== 盔甲类 ==========
+  "armor_forge": 0.1                 # Armor Crafting 盔甲锻造
+  "glowstone_armor": 0.2             # Glowstone Armor 荧石盔甲
+  "ender_armor": 0.3                 # Ender Armor 末影盔甲
+  "slime_armor": 0.2                 # Slime Armor 粘液盔甲
+  "cactus_armor": 0.2                # Cactus Suit 仙人掌盔甲
+  "gilded_iron_armor": 0.3           # Gilded Iron Armor 镀金铁甲
+  "damascus_steel_armor": 0.4        # Damascus Steel Armor 大马士革钢甲
+  "reinforced_armor": 0.5            # Reinforced Armor 强化盔甲
+  "chainmail_armor": 0.3             # Chainmail Armor 锁链盔甲
+  "gold_armor": 0.2                  # Shiny Armor 闪亮盔甲
+  "hazmat_suit": 0.4                 # Hazmat Suit 防化服
+  "slime_steel_armor": 0.5           # Slimy Steel Armor 粘钢盔甲
+  "bee_armor": 0.3                   # Bee Armor 蜜蜂盔甲
+  "rainbow_armor": 0.5               # Rainbow Armor 彩虹盔甲
+  "bound_armor": 0.5                 # Soulbound Armor 灵魂绑定盔甲
+  "bound_backpack": 0.4              # Soulbound Storage 灵魂绑定背包
+  "bound_tools": 0.4                 # Soulbound Tools 灵魂绑定工具
+  "bound_weapons": 0.4               # Soulbound Weapons 灵魂绑定武器
+
+  # ========== 工具与武器类 ==========
+  "sword_of_beheading": 0.2           # Sword of Beheading 斩首剑
+  "blade_of_vampires": 0.4            # Blade of Vampires 吸血鬼之刃
+  "smelters_pickaxe": 0.3             # Smelters Pickaxe 冶炼镐
+  "pickaxe_of_containment": 0.4       # Pickaxe of Containment 禁锢镐
+  "pickaxe_of_the_seeker": 0.5        # Pickaxe of the Seeker 探寻者镐
+  "pickaxe_of_vein_mining": 0.5       # Pickaxe of Vein Mining 矿脉镐
+  "lumber_axe": 0.2                   # Lumber Axe 伐木斧
+  "seismic_axe": 0.4                  # Seismic Axe 地震斧
+  "cobalt_pickaxe": 0.3               # Cobalt Pickaxe 钴镐
+  "explosive_tools": 0.4              # Explosive Tools 爆炸工具
+  "boots_of_the_stomper": 0.3         # Boots of the Stomper 重踏靴
+  "farmer_shoes": 0.2                 # Farmer Shoes 农夫鞋
+  "night_vision_googles": 0.2         # Night Vision Goggles 夜视镜
+  "special_bows": 0.3                 # Special Bows 特殊弓
+
+  # ========== 背包类 ==========
+  "ender_backpack": 0.1               # Ender Backpack 末影背包
+  "backpacks": 0.1                    # Backpacks 背包基础
+  "woven_backpack": 0.2               # Woven Backpack 编织背包
+  "gilded_backpack": 0.3              # Gilded Backpack 镀金背包
+  "radiant_backpack": 0.4             # Radiant Backpack 光芒背包
+  "bound_backpack": 0.4               # Soulbound Backpack 灵魂绑定背包
+
+  # ========== 护身符类 ==========
+  "common_talisman": 0.1              # Common Talisman 普通护身符
+  "anvil_talisman": 0.2               # Talisman of the Anvil 铁砧护身符
+  "miner_talisman": 0.2               # Talisman of the Miner 矿工护身符
+  "hunter_talisman": 0.2              # Talisman of the Hunter 猎人护身符
+  "lava_talisman": 0.2                # Talisman of the Lava Walker 岩浆行者护身符
+  "water_talisman": 0.2               # Talisman of the Water Breather 水下呼吸护身符
+  "angel_talisman": 0.2               # Talisman of the Angel 天使护身符
+  "fire_talisman": 0.2                # Talisman of the Firefighter 消防员护身符
+  "magician_talisman": 0.3            # Talisman of the Magician 魔术师护身符
+  "traveller_talisman": 0.3           # Talisman of the Traveller 旅者护身符
+  "warrior_talisman": 0.3             # Talisman of the Warrior 战士护身符
+  "knight_talisman": 0.3              # Talisman of the Knight 骑士护身符
+  "whirlwind_talisman": 0.3           # Talisman of the Whirlwind 旋风护身符
+  "wizard_talisman": 0.4              # Talisman of the Wizard 巫师护身符
+  "wise_talisman": 0.4                # Talisman of the Wise 智者护身符
+  "caveman_talisman": 0.3             # Talisman of the Caveman 野人护身符
+  "farmer_talisman": 0.3              # Talisman of the Farmer 农夫护身符
+  "ender_talismans": 0.4              # Ender Talisman 末影护身符
+  "lava_crystal": 0.1                 # Firey Situation 火焰晶体
+
+  # ========== 冶金与合金类 ==========
+  "lumps": 0.1                        # Lumps and Magic 团块与魔法
+  "slimefun_metals": 0.2              # New Metals 新金属
+  "bronze": 0.2                       # Bronze Creation 青铜制造
+  "alloys": 0.3                       # Advanced Alloys 高级合金
+  "damascus_steel": 0.3               # Damascus Steel 大马士革钢
+  "reinforced_alloy": 0.4             # Reinforced Alloy 强化合金
+  "steel": 0.2                        # Steel Age 钢铁时代
+  "gilded_iron": 0.2                  # Shiny Iron 闪亮铁
+  "carbonado": 0.4                    # Black Diamonds 黑钻石
+  "nickel_and_cobalt": 0.3            # Nickel and Cobalt 镍与钴
+  "blistering_ingots": 0.4            # Blistering Radioactivity 放射性锭
+  "uranium": 0.4                      # Radioactive 放射性
+  "boosted_uranium": 0.5              # Boosted Uranium 浓缩铀
+  "redstone_alloy": 0.3               # Redstone Alloy 红石合金
+  "copper_wire": 0.1                  # Copper Wire 铜线
+  "electric_motor": 0.2               # Electric Motor 电动机
+  "fuel": 0.2                         # Fuel 燃料
+  "oil": 0.2                          # Oil 石油
+  "plastic_sheet": 0.2                # Plastic 塑料
+  "hardened_glass": 0.2               # Hardened Glass 钢化玻璃
+  "wither_proof_glass": 0.5           # Wither-Proof Glass 防凋零玻璃
+  "wither_proof_obsidian": 0.5        # Wither-Proof Obsidian 防凋零黑曜石
+  "lead_clothing": 0.3                # Lead Clothing 铅衣
+
+  # ========== 机器与电力类 ==========
+  "basic_circuit_board": 0.2          # Electric Work 基础电路
+  "advanced_circuit_board": 0.3       # Advanced Electricity 高级电路
+  "smeltery": 0.1                     # Hot Smelting 冶炼炉
+  "makeshift_smeltery": 0.1           # Improvised Smeltery 简易冶炼炉
+  "misc_power_items": 0.2             # Important Power-Related Items 电力基础
+  "battery": 0.1                      # Your first Battery 电池
+  "steel_plate": 0.2                  # Steel Plating 钢板
+  "steel_thruster": 0.2               # Steel Thruster 钢制推进器
+  "jetpacks": 0.3                     # Jetpacks 喷气背包
+  "jetboots": 0.3                     # Jet Boots 喷气靴
+  "multitools": 0.3                   # Multi Tools 多功能工具
+  "solar_panel_and_helmet": 0.3       # Solar Power 太阳能
+  "solar_generators": 0.3             # Solar Power Plant 太阳能发电机
+  "better_solar_generators": 0.4      # Better Solar Generators 更好的太阳能
+  "energized_solar_generator": 0.5    # Energized Solar Generator 充能太阳能
+  "elemental_staff": 0.2              # Elemental Staves 元素法杖
+  "wind_staff": 0.3                   # Wind Staff 风之法杖
+  "water_staff": 0.3                  # Water Staff 水之法杖
+  "fire_staff": 0.3                   # Fire Staff 火之法杖
+  "storm_staff": 0.5                  # Storm Staff 风暴法杖
+  "magic_workbench": 0.2              # Magic Workbench 魔法工作台
+  "grind_stone": 0.1                  # Grind Stone 磨石
+  "gold_pan": 0.1                     # Gold Pan 淘金盘
+  "nether_gold_pan": 0.2              # Nether Gold Pan 下界淘金盘
+  "magical_book_cover": 0.1           # Magical Book Binding 魔法书封
+  "ore_crusher": 0.1                  # Ore Doubling 矿石粉碎机
+  "compressor_and_carbon": 0.2        # Carbon Creation 压缩机与碳
+  "pressure_chamber": 0.2             # Pressure Chamber 压力室
+  "heated_pressure_chamber": 0.4      # Heated Pressure Chamber 加热压力室
+  "ore_washer": 0.2                   # Ore Washer 洗矿机
+  "silicon": 0.2                      # Silicon Valley 硅谷
+  "synthetic_diamond": 0.3            # Synthetic Diamonds 合成钻石
+  "synthetic_sapphire": 0.3           # Synthetic Sapphires 合成蓝宝石
+  "synthetic_emerald": 0.2            # Fake Gem 合成绿宝石
+  "gold_carats": 0.3                  # Pure Gold 纯金
+  "synthetic_shulker": 0.5           # Synthetic Shulkers 合成潜影壳
+  "carbon_press": 0.3                 # Carbon Press 碳压机
+  "better_carbon_press": 0.4          # Better Carbon Press 改进碳压机
+  "electric_smeltery": 0.3            # Electric Smeltery 电动冶炼炉
+  "advanced_electric_smeltery": 0.4   # Advanced Electric Smeltery 高级电动冶炼炉
+  "electric_furnaces": 0.3            # Electric Furnaces 电炉
+  "better_electric_furnace": 0.4      # Better Electric Furnace 更好的电炉
+  "electric_press": 0.3               # Electric Press 电动压机
+  "electric_ingot_machines": 0.3      # Electric Ingot Fabrication 电动锭机
+  "better_electric_ingot_machines": 0.4 # Better Ingot Fabrication 改进电动锭机
+  "electric_crucible": 0.3            # Electrified Crucible 电动坩埚
+  "better_electric_crucibles": 0.4    # Better Electric Crucibles 改进电动坩埚
+  "cooler": 0.2                       # Cooler 冷却器
+  "freezer": 0.2                      # Freezer 冷冻机
+  "better_freezer": 0.3               # Better Freezer 改进冷冻机
+  "auto_breeder": 0.3                 # Auto Breeder 自动繁殖机
+  "auto_brewer": 0.3                  # Auto Brewer 自动酿造机
+  "auto_crafting": 0.3                # Automatic Crafting 自动合成台
+  "auto_drier": 0.2                   # Auto Drier 自动烘干机
+  "output_chest": 0.1                 # Basic machinery output chest 基础输出箱
+  "carbonado_tools": 0.4              # Top Tier Machines 顶级机器
+  "enhanced_furnace": 0.2             # Enhanced Furnace 增强熔炉
+  "reinforced_furnace": 0.3           # Reinforced Furnace 强化熔炉
+  "carbonado_furnace": 0.4            # Carbonado Edged Furnace 黑曜石熔炉
+  "more_enhanced_furnaces": 0.3       # More Enhanced Furnaces 更多增强熔炉
+  "charged_bench": 0.3                # Charging Bench 充电台
+  "trash_can": 0.1                    # Trash 垃圾桶
+  "composter": 0.2                    # Composting Dirt 堆肥机
+  "crucible": 0.2                     # Crucible 坩埚
+  "infused_hopper": 0.3               # Infused Hopper 灌注漏斗
+  "infused_magnet": 0.3               # Infused Magnets 灌注磁铁
+  "magnet": 0.2                       # Magnet 磁铁
+  "table_saw": 0.3                    # Table Saw 台锯
+  "block_placer": 0.2                 # Block Placer 方块放置器
+  "produce_collector": 0.3            # Produce Collector 作物收集器
+  "fluid_pump": 0.2                   # Fluid Pump 流体泵
+
+  # ========== 能源与发电类 ==========
+  "coal_generator": 0.2               # Coal Generator 燃煤发电机
+  "lava_generator": 0.3               # Lava Generator 岩浆发电机
+  "magnesium_generator": 0.3          # Power from Magnesium 镁发电机
+  "combustion_reactor": 0.4           # Combustion Reactor 燃烧反应堆
+  "bio_reactor": 0.3                  # Bio-Reactor 生物反应堆
+  "nuclear_reactor": 0.5              # Nuclear Power Plant 核电站
+  "nether_star_reactor": 0.5          # Nether Star Reactor 下界之星反应堆
+  "energy_connectors": 0.2            # Energy Networks 101 能量连接器
+  "energy_regulator": 0.2             # Energy Regulator 能量调节器
+  "capacitors": 0.1                   # Capacitors 电容器
+  "high_tier_capacitors": 0.3         # High Tier Capacitors 高级电容器
+
+  # ========== 农业与食物类 ==========
+  "ingredients_and_cheese": 0.1       # Ingredients and Cheese 食材与奶酪
+  "golden_apple_juice": 0.1           # Golden potion 金苹果汁
+  "juicer": 0.1                       # Juicer 榨汁机
+  "kelp_cookie": 0.1                  # Tasty Kelp 海苔饼干
+  "food_fabricator": 0.2             # Food Fabricator 食品加工机
+  "better_food_fabricator": 0.3       # Better Food Fabricator 改进食品加工机
+  "animal_growth_accelerator": 0.3    # Animal Growth Manipulation 动物生长加速
+  "crop_growth_accelerator": 0.2      # Crop Growth Acceleration 作物生长加速
+  "better_crop_growth_accelerator": 0.3 # Better Crop Accelerator 改进作物加速
+  "tree_growth_accelerator": 0.3      # Faster Trees 树木生长加速
+  "organic_food": 0.1                 # Organic Food 有机食物
+  "organic_fertilizer": 0.1           # Organic Fertilizer 有机肥料
+  "infernal_bonemeal": 0.3            # Infernal Bonemeal 地狱骨粉
+
+  # ========== 物流与货运类 ==========
+  "cargo_basics": 0.3                 # Cargo Basics 货运基础
+  "cargo_nodes": 0.3                  # Cargo Setup 货运节点
+  "trash_can": 0.1                    # Trash 垃圾桶(重复key,保留)
+  "automatic_ignition_chamber": 0.3   # Automatic Ignition Chamber 自动点火室
+  "teleporter": 0.3                   # Teleporter 传送器
+  "teleporter_activation_plates": 0.2 # Teleporter Activation 传送板
+  "portable_teleporter": 0.4          # Teleporter Base Components 便携传送
+  "gps_setup": 0.2                    # Basic GPS Setup GPS基础
+  "gps_emergency_transmitter": 0.3    # GPS Emergency Waypoint GPS紧急信标
+  "geo_scanner": 0.1                  # GEO-Scans GEO扫描仪
+  "geo_miner": 0.2                    # GEO-Miner GEO矿机
+
+  # ========== 机器升级类 ==========
+  "better_gps_transmitters": 0.3      # Upgraded Transmitters 升级GPS发射器
+  "energized_gps_transmitter": 0.4    # Top Tier Transmitter 充能GPS发射器
+  "carbonado_tools": 0.4              # Top Tier Machines 顶级机器
+  "multimeter": 0.1                   # Power Measurement 万用表
+  "hologram_projector": 0.2           # Holograms 全息投影仪
+  "elevator": 0.1                     # Elevators 电梯
+
+  # ========== 魔法与符文类 ==========
+  "ancient_altar": 0.2                # Ancient Altar 远古祭坛
+  "ancient_runes": 0.3                # Ancient Enchanting 远古符文
+  "enchantment_rune": 0.2             # Enchantment Book Binding 附魔符文
+  "lightning_rune": 0.3               # Lightning Rune 闪电符文
+  "soulbound_rune": 0.4               # Soulbound Rune 灵魂绑定符文
+  "villager_rune": 0.4                # Villager Rune 村民符文
+  "special_runes": 0.3                # Special Runes 特殊符文
+  "essence_of_afterlife": 0.5         # Essence of Afterlife 来世精华
+  "flask_of_knowledge": 0.3           # Flask of Knowledge 知识之瓶
+  "tome_of_knowledge_sharing": 0.3    # Tome of Knowledge Sharing 知识共享书
+  "book_binder": 0.2                  # Book Binder 书籍装订机
+
+  # ========== 自动化与机器人 ==========
+  "programmable_androids": 0.4        # Programmable Androids 可编程机器人
+  "advanced_android": 0.4             # Advanced Androids 高级机器人
+  "empowered_android": 0.5            # Empowered Androids 强化机器人
+  "butcher_androids": 0.4             # Butcher Androids 屠宰机器人
+  "advanced_butcher_android": 0.5     # Advanced Androids - Butcher 高级屠宰机器人
+  "empowered_butcher_android": 0.5    # Empowered Androids - Butcher 强化屠宰机器人
+  "advanced_farmer_android": 0.5      # Advanced Androids - Farmer 高级农民机器人
+  "advanced_fisherman_android": 0.5   # Advanced Androids - Fisherman 高级钓鱼机器人
+  "empowered_fisherman_android": 0.5  # Empowered Androids - Fisherman 强化钓鱼机器人
+  "android_interfaces": 0.3           # Android Interfaces 机器人接口
+  "android_memory_core": 0.3          # Memory Core 记忆核心
+  "iron_golem_assembler": 0.4         # Automated Iron Golems 铁傀儡装配机
+  "wither_assembler": 0.5             # Automated Wither Killer 凋灵装配机
+  "industrial_miner": 0.3             # Industrial Mining 工业矿机
+  "advanced_industrial_miner": 0.4    # Advanced Industrial Miner 高级工业矿机
+  "auto_anvil": 0.3                   # Automatic Anvil 自动铁砧
+  "auto_enchanting": 0.3              # Automatic Enchanting 自动附魔
+  "medium_tier_auto_enchanting": 0.4  # Fast Automatic Enchanting 中级自动附魔
+  "xp_collector": 0.2                 # XP Collector 经验收集器
+
+  # ========== 特殊物品类 ==========
+  "shulker_shell": 0.3                # Shulker Shell 潜影壳
+  "repaired_spawner": 0.5             # Repairing Spawners 修复刷怪笼
+  "trident": 0.3                      # Trident 三叉戟
+  "elytra": 0.5                       # Elytras 鞘翅
+  "special_elytras": 0.5              # Special Elytras 特殊鞘翅
+  "elytra_cap": 0.4                   # Elytra Cap 鞘翅帽
+  "totem_of_undying": 0.5             # Totem of Undying 不死图腾
+  "magical_zombie_pills": 0.3         # Magical Zombie Pills 魔法僵尸药
+  "scroll_of_dimensional_teleposition": 0.5 # Scroll of Teleposition 空间传送卷轴
+  "nether_ice": 0.2                   # Nether Ice Coolant 下界冰
+  "rainbow_blocks": 0.3               # Rainbow Blocks 彩虹方块
+  "wither_proof_glass": 0.5           # Wither-Proof Glass 防凋零玻璃
+  "wither_proof_obsidian": 0.5        # Wither-Proof Obsidian 防凋零黑曜石
+  "advanced_output_node": 0.3         # Advanced Output Node 高级输出节点
+  "reactor_access_port": 0.3          # Reactor Interaction 反应堆访问口
+  "reactor_essentials": 0.3           # Reactor Essentials 反应堆基础
+
+# ============================================
+# 多研究院加速
+# 同一科技被多个研究院同时研究时，研究速率随研究院数量增大
+# 封顶 5 个研究院
+# lab-speed-max-multiplier: 5个研究院时的最大速率倍率
+# ============================================
+lab-speed:
+  max-multiplier: 5.0
+
+# ============================================
+# 付费加速
+# 玩家可通过花费城邦银行金币购买加速等级
+# 每级需逐级购买，到达最大值后不可继续购买
+# ============================================
+paid-speed:
+  max-level: 10
+  levels:
+    1:
+      cost: 1000.0
+      multiplier: 1.1
+    2:
+      cost: 2000.0
+      multiplier: 1.2
+    3:
+      cost: 3000.0
+      multiplier: 1.3
+    4:
+      cost: 4000.0
+      multiplier: 1.4
+    5:
+      cost: 5000.0
+      multiplier: 1.5
+    6:
+      cost: 6000.0
+      multiplier: 1.6
+    7:
+      cost: 7000.0
+      multiplier: 1.7
+    8:
+      cost: 8000.0
+      multiplier: 1.8
+    9:
+      cost: 9000.0
+      multiplier: 1.9
+    10:
+      cost: 10000.0
+      multiplier: 2.0

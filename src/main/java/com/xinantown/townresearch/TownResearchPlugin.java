@@ -9,6 +9,7 @@ public class TownResearchPlugin extends JavaPlugin {
 
     private TownDataManager dataManager;
     private ResearchScheduler scheduler;
+    private ResearchSettings researchSettings;
     private int maxLabs = 5;
 
     @Override
@@ -18,19 +19,21 @@ public class TownResearchPlugin extends JavaPlugin {
 
         dataManager = new TownDataManager(new java.io.File(getDataFolder(), "data"), getLogger());
 
+        researchSettings = new ResearchSettings(this);
+
         SlimefunBridge sfBridge = new SlimefunBridge(getLogger());
         sfBridge.dumpKeys();
 
-        ResearchService service = new ResearchService(dataManager, sfBridge, maxLabs);
+        ResearchService service = new ResearchService(dataManager, sfBridge, researchSettings);
         ResearchGuiListener guiListener = new ResearchGuiListener(dataManager, maxLabs);
-        new ResearchCommand(this, guiListener, sfBridge, maxLabs).register();
+        new ResearchCommand(this, guiListener, sfBridge, researchSettings).register();
 
         // Load persisted researchers into memory
         for (String townName : dataManager.loadAll(maxLabs).keySet()) {
             guiListener.loadResearchers(townName);
         }
 
-        scheduler = new ResearchScheduler(this, sfBridge, maxLabs);
+        scheduler = new ResearchScheduler(this, sfBridge, researchSettings);
         scheduler.start();
         getServer().getPluginManager().registerEvents(scheduler, this);
 
@@ -47,4 +50,5 @@ public class TownResearchPlugin extends JavaPlugin {
     }
 
     public TownDataManager getDataManager() { return dataManager; }
+    public ResearchSettings getResearchSettings() { return researchSettings; }
 }
