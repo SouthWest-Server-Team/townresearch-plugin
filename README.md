@@ -18,6 +18,4 @@ Towny + Slimefun 集成插件。将 Slimefun 科技研研究从个人级改为�
 - Towny API
 - Slimefun API (Build 200)
 
-## 开发状态
-
-🟡 设计阶段 — 见 `docs/adr/0003-townresearch-plugin.md`
+- 使用 `mvnw clean package` 构建插件 JAR。
