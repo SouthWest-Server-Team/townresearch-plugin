@@ -35,8 +35,8 @@ max-labs: 5   # 每个城邦最多拥有的研究所数量
 ## 技术栈
 
 - depend：Towny、Slimefun
-- Bukkit/Paper API 1.20.1（Java 17 + Maven）
+- Leaf API 1.21.11（Java 21 + Maven）
 
 ## 开发状态
 
-🟡 设计/实现阶段 — 见 `docs/adr/0003-townresearch-plugin.md`
+🟡 基础实现已完成（当前分支已迁移 Leaf 1.21.11，15 个单元测试通过）；仍需测试服验证研究所建筑、城邦科技同步、Slimefun 实际解锁和经济扣款流程。设计依据见 `docs/adr/0003-townresearch-plugin.md`。
