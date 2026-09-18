@@ -3,6 +3,9 @@ package com.xinantown.townresearch;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.object.Town;
 import com.palmergames.bukkit.towny.object.TownBlock;
+import com.xinantown.townresearch.display.LabPresenceDebouncer;
+import com.xinantown.townresearch.display.ResearchBossBarPresentation;
+import com.xinantown.townresearch.display.ResearchDisplayBusBridge;
 import com.xinantown.townresearch.model.ResearchLab;
 import com.xinantown.townresearch.model.ResearchProject;
 import com.xinantown.townresearch.model.TownResearch;
@@ -14,152 +17,193 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /**
- * Manages research progress boss bars:
+ * Research progress BossBar:
  * <ul>
- *   <li>2s refresh — updates progress bars for all towns with active research</li>
- *   <li>PlayerMoveEvent — adds/removes players from bars based on lab proximity</li>
+ *   <li>Prefer DisplayBus owned slot (source=townresearch, key=townName)</li>
+ *   <li>Fallback to direct Bukkit BossBar when DisplayBus is missing</li>
+ *   <li>Lab enter/leave debounced to reduce PlayerMoveEvent jitter</li>
  * </ul>
  */
-public class ResearchBossBarManager implements Listener {
+public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridge.LegacyBossBarSink {
 
     private final TownResearchPlugin plugin;
     private final TownDataManager dataManager;
     private final ResearchSettings settings;
     private final int maxLabs;
-    private final Map<String, BossBar> townBossBars = new HashMap<>(); // townName -> boss bar
+    private final LabPresenceDebouncer debouncer;
+    private final ResearchDisplayBusBridge bridge;
+
+    /** Legacy path only: townName -> shared BossBar */
+    private final Map<String, BossBar> townBossBars = new HashMap<>();
+    /** player -> town currently attached */
+    private final Map<UUID, String> playerTown = new HashMap<>();
 
     public ResearchBossBarManager(TownResearchPlugin plugin, ResearchSettings settings) {
         this.plugin = plugin;
         this.dataManager = plugin.getDataManager();
         this.settings = settings;
         this.maxLabs = settings.getMaxLabs();
+        this.debouncer = new LabPresenceDebouncer(ResearchBossBarPresentation.LEAVE_GRACE_TICKS);
+        this.bridge = ResearchDisplayBusBridge.lookup(plugin.getLogger(), this);
+        if (bridge.usesBus()) {
+            plugin.getLogger().info("Research BossBar using DisplayBus.");
+        }
     }
 
-    /**
-     * Refresh all boss bars. Called by the 2-second timer.
-     */
+    /** Package-visible for tests. */
+    ResearchBossBarManager(TownResearchPlugin plugin,
+                           ResearchSettings settings,
+                           LabPresenceDebouncer debouncer,
+                           ResearchDisplayBusBridge bridge) {
+        this.plugin = plugin;
+        this.dataManager = plugin.getDataManager();
+        this.settings = settings;
+        this.maxLabs = settings.getMaxLabs();
+        this.debouncer = debouncer;
+        this.bridge = bridge;
+    }
+
     public void refreshBars() {
-        long now = System.currentTimeMillis();
+        long nowMs = System.currentTimeMillis();
+        long nowTick = Bukkit.getCurrentTick();
         Map<String, TownResearch> all = dataManager.loadAll(maxLabs);
-        updateAllBars(all, now);
+        updateAll(all, nowMs, nowTick);
     }
 
-    /**
-     * Remove all boss bars on shutdown.
-     */
     public void cleanup() {
+        for (UUID playerId : new HashSet<>(playerTown.keySet())) {
+            hidePlayer(playerId);
+        }
         for (BossBar bar : townBossBars.values()) {
             bar.removeAll();
         }
         townBossBars.clear();
+        playerTown.clear();
+        debouncer.clearAll();
+        bridge.cleanup();
     }
 
-    // ==================== Bar updates ====================
-
-    private void updateAllBars(Map<String, TownResearch> all, long nowMs) {
-        Set<String> unusedBars = new HashSet<>(townBossBars.keySet());
-
+    private void updateAll(Map<String, TownResearch> all, long nowMs, long nowTick) {
+        Set<String> activeTowns = new HashSet<>();
         for (var entry : all.entrySet()) {
             String townName = entry.getKey();
             TownResearch tr = entry.getValue();
-
             if (tr.getActiveProjects().isEmpty()) {
-                unusedBars.add(townName);
+                continue;
+            }
+            activeTowns.add(townName);
+            ResearchBossBarPresentation.Snapshot snap = snapshotFor(tr, nowMs);
+            if (snap == null) {
                 continue;
             }
 
-            unusedBars.remove(townName);
-
-            List<ResearchProject> projects = new ArrayList<>(entry.getValue().getActiveProjects().values());
-            if (projects.isEmpty()) continue;
-
-            BossBar bar = townBossBars.computeIfAbsent(townName, k -> {
-                BossBar b = Bukkit.createBossBar("", BarColor.BLUE, BarStyle.SOLID);
-                b.setVisible(true);
-                return b;
-            });
-
-            String title = buildBarTitle(tr, projects.get(0), nowMs,
-                    projects.size() > 1 ? " §7| §8+" + (projects.size() - 1) + " 个" : "");
-            bar.setTitle(title);
-            bar.setProgress(Math.max(0.01, getProgress(tr, projects.get(0), nowMs)));
-
-            // Update viewers
-            Set<Player> viewers = findViewers(townName, tr);
-            for (Player p : new ArrayList<>(bar.getPlayers())) {
-                if (!viewers.contains(p)) bar.removePlayer(p);
+            Set<Player> nearPlayers = findNearLabPlayers(townName, tr);
+            Set<UUID> nearIds = new HashSet<>();
+            for (Player p : nearPlayers) {
+                UUID id = p.getUniqueId();
+                nearIds.add(id);
+                LabPresenceDebouncer.Decision decision = debouncer.onPresenceChanged(id, true, nowTick);
+                if (decision == LabPresenceDebouncer.Decision.SHOW
+                        || decision == LabPresenceDebouncer.Decision.KEEP) {
+                    showPlayer(id, townName, snap, nowTick);
+                }
             }
-            for (Player p : viewers) {
-                if (!bar.getPlayers().contains(p)) bar.addPlayer(p);
+
+            for (UUID id : new HashSet<>(playerTown.keySet())) {
+                if (nearIds.contains(id)) {
+                    continue;
+                }
+                if (!townName.equals(playerTown.get(id))) {
+                    continue;
+                }
+                LabPresenceDebouncer.Decision leave = debouncer.onPresenceChanged(id, false, nowTick);
+                if (leave == LabPresenceDebouncer.Decision.HIDE
+                        || debouncer.tick(id, nowTick) == LabPresenceDebouncer.Decision.HIDE) {
+                    hidePlayer(id);
+                } else if (debouncer.shouldDisplay(id, nowTick)) {
+                    showPlayer(id, townName, snap, nowTick);
+                }
             }
         }
 
-        // Clean up bars for towns with no active projects
-        for (String tn : unusedBars) {
-            BossBar bar = townBossBars.remove(tn);
-            if (bar != null) {
-                bar.removeAll();
-                bar.setVisible(false);
+        for (UUID id : new HashSet<>(playerTown.keySet())) {
+            if (debouncer.tick(id, nowTick) == LabPresenceDebouncer.Decision.HIDE) {
+                hidePlayer(id);
+                continue;
+            }
+            String townName = playerTown.get(id);
+            if (townName == null || !activeTowns.contains(townName)) {
+                debouncer.clear(id);
+                hidePlayer(id);
+            }
+        }
+
+        if (!bridge.usesBus()) {
+            Set<String> unused = new HashSet<>(townBossBars.keySet());
+            unused.removeAll(activeTowns);
+            for (String tn : unused) {
+                BossBar bar = townBossBars.remove(tn);
+                if (bar != null) {
+                    bar.removeAll();
+                    bar.setVisible(false);
+                }
             }
         }
     }
 
-    // ==================== Title builder (eliminates duplication) ====================
+    private void showPlayer(UUID playerId, String townName,
+                            ResearchBossBarPresentation.Snapshot snap, long nowTick) {
+        bridge.show(playerId, townName, snap.title(), snap.bossBarProgress(), nowTick);
+        playerTown.put(playerId, townName);
+    }
 
-    /**
-     * Build a boss bar title string. Shared by refresh timer and PlayerMoveEvent.
-     */
-    private String buildBarTitle(TownResearch tr, ResearchProject first, long nowMs, String suffix) {
-        long effectiveMs = tr.getEffectiveDuration(first.sfKey(), first.durationMinutes(), settings) * 60000;
-        long elapsed = nowMs - first.startedAt();
+    private void hidePlayer(UUID playerId) {
+        bridge.hide(playerId);
+        playerTown.remove(playerId);
+    }
+
+    private ResearchBossBarPresentation.Snapshot snapshotFor(TownResearch tr, long nowMs) {
+        List<ResearchProject> projects = new ArrayList<>(tr.getActiveProjects().values());
+        if (projects.isEmpty()) {
+            return null;
+        }
+        ResearchProject first = projects.get(0);
+        long effectiveMinutes = tr.getEffectiveDuration(first.sfKey(), first.durationMinutes(), settings);
         int labCount = tr.countLabsResearching(first.sfKey());
         double speed = settings.calcLabSpeedMultiplier(labCount)
                 * settings.getPaidSpeedLevelMultiplier(tr.getPaidSpeedLevel());
-
-        String remainingStr = formatDuration(Math.max(0, effectiveMs - elapsed));
-        String displayKey = first.sfKey();
-        if (displayKey.contains(":")) displayKey = displayKey.substring(displayKey.indexOf(':') + 1);
-
-        double progress = Math.min(1.0, (double) elapsed / effectiveMs);
-
-        return "§b§l⚡ 研究进度 "
-                + "§e" + displayKey
-                + " §7| §a" + String.format("%.1f", progress * 100) + "%"
-                + " §7| ⏱ " + remainingStr
-                + " §7| 加速: §e" + String.format("%.1f", speed) + "x"
-                + suffix;
+        return ResearchBossBarPresentation.build(
+                first.sfKey(),
+                first.startedAt(),
+                effectiveMinutes,
+                labCount,
+                speed,
+                nowMs,
+                Math.max(0, projects.size() - 1)
+        );
     }
 
-    private double getProgress(TownResearch tr, ResearchProject first, long nowMs) {
-        long effectiveMs = tr.getEffectiveDuration(first.sfKey(), first.durationMinutes(), settings) * 60000;
-        return Math.min(1.0, (double) (nowMs - first.startedAt()) / effectiveMs);
-    }
-
-    private static String formatDuration(long remainingMs) {
-        long totalSec = remainingMs / 1000;
-        if (totalSec >= 3600) {
-            return String.format("%dh%02dm", totalSec / 3600, (totalSec % 3600) / 60);
-        } else if (totalSec >= 60) {
-            return String.format("%dm%02ds", totalSec / 60, totalSec % 60);
-        }
-        return totalSec + "s";
-    }
-
-    // ==================== Viewers ====================
-
-    private Set<Player> findViewers(String townName, TownResearch tr) {
+    private Set<Player> findNearLabPlayers(String townName, TownResearch tr) {
         Set<Player> viewers = new HashSet<>();
         Town town = TownyAPI.getInstance().getTown(townName);
-        if (town != null) {
-            for (var resident : town.getResidents()) {
-                Player p = Bukkit.getPlayer(resident.getUUID());
-                if (p != null && p.isOnline() && isNearAnyLab(p, tr)) {
-                    viewers.add(p);
-                }
+        if (town == null) {
+            return viewers;
+        }
+        for (var resident : town.getResidents()) {
+            Player p = Bukkit.getPlayer(resident.getUUID());
+            if (p != null && p.isOnline() && isNearAnyLab(p, tr)) {
+                viewers.add(p);
             }
         }
         return viewers;
@@ -177,42 +221,102 @@ public class ResearchBossBarManager implements Listener {
         return false;
     }
 
-    // ==================== PlayerMoveEvent ====================
-
     @EventHandler
     public void onPlayerMove(PlayerMoveEvent event) {
         if (event.getFrom().getBlockX() == event.getTo().getBlockX()
-                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
+            return;
+        }
 
         Player player = event.getPlayer();
         Town town = TownyAPI.getInstance().getTown(player);
-        if (town == null) return;
+        if (town == null) {
+            return;
+        }
 
         String townName = town.getName();
         TownResearch tr = dataManager.load(townName, maxLabs);
-        if (tr == null || tr.getActiveProjects().isEmpty()) return;
-
-        boolean nearLab = isNearAnyLab(player, tr);
-        BossBar bar = townBossBars.get(townName);
-
-        if (nearLab) {
-            if (bar == null) {
-                bar = Bukkit.createBossBar("", BarColor.BLUE, BarStyle.SOLID);
-                bar.setVisible(true);
-                townBossBars.put(townName, bar);
-            }
-            List<ResearchProject> projects = new ArrayList<>(tr.getActiveProjects().values());
-            if (!projects.isEmpty()) {
-                String title = buildBarTitle(tr, projects.get(0), System.currentTimeMillis(),
-                        projects.size() > 1 ? " §7| §8+" + (projects.size() - 1) + " 个" : "");
-                bar.setTitle(title);
-                bar.setProgress(Math.max(0.01, getProgress(tr, projects.get(0), System.currentTimeMillis())));
-            }
-            if (!bar.getPlayers().contains(player)) {
-                bar.addPlayer(player);
-            }
-        } else if (bar != null && bar.getPlayers().contains(player)) {
-            bar.removePlayer(player);
+        if (tr == null || tr.getActiveProjects().isEmpty()) {
+            return;
         }
+
+        long nowTick = Bukkit.getCurrentTick();
+        UUID id = player.getUniqueId();
+        boolean nearLab = isNearAnyLab(player, tr);
+        LabPresenceDebouncer.Decision decision = debouncer.onPresenceChanged(id, nearLab, nowTick);
+
+        if (nearLab || debouncer.shouldDisplay(id, nowTick)) {
+            ResearchBossBarPresentation.Snapshot snap = snapshotFor(tr, System.currentTimeMillis());
+            if (snap != null
+                    && (decision == LabPresenceDebouncer.Decision.SHOW
+                    || decision == LabPresenceDebouncer.Decision.KEEP)) {
+                showPlayer(id, townName, snap, nowTick);
+            }
+        }
+
+        if (!nearLab) {
+            if (decision == LabPresenceDebouncer.Decision.HIDE
+                    || debouncer.tick(id, nowTick) == LabPresenceDebouncer.Decision.HIDE) {
+                hidePlayer(id);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID id = event.getPlayer().getUniqueId();
+        debouncer.clear(id);
+        hidePlayer(id);
+    }
+
+    // ==================== LegacyBossBarSink ====================
+
+    @Override
+    public void show(UUID playerId, String townName, String title, double progress) {
+        Player player = Bukkit.getPlayer(playerId);
+        if (player == null || !player.isOnline()) {
+            return;
+        }
+        BossBar bar = townBossBars.computeIfAbsent(townName, k -> {
+            BossBar b = Bukkit.createBossBar("", BarColor.BLUE, BarStyle.SOLID);
+            b.setVisible(true);
+            return b;
+        });
+        bar.setTitle(title);
+        bar.setProgress(Math.max(0.01, Math.min(1.0, progress)));
+
+        String previous = playerTown.put(playerId, townName);
+        if (previous != null && !previous.equals(townName)) {
+            BossBar old = townBossBars.get(previous);
+            if (old != null) {
+                old.removePlayer(player);
+            }
+        }
+        if (!bar.getPlayers().contains(player)) {
+            bar.addPlayer(player);
+        }
+    }
+
+    @Override
+    public void hide(UUID playerId) {
+        String townName = playerTown.remove(playerId);
+        Player player = Bukkit.getPlayer(playerId);
+        if (townName != null) {
+            BossBar bar = townBossBars.get(townName);
+            if (bar != null && player != null) {
+                bar.removePlayer(player);
+            }
+            return;
+        }
+        if (player != null) {
+            for (BossBar bar : townBossBars.values()) {
+                bar.removePlayer(player);
+            }
+        }
+    }
+
+    @Override
+    public void cleanupLegacy() {
+        // manager.cleanup already clears bars
     }
 }

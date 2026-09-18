@@ -3,6 +3,7 @@ version: 1.0.0
 main: com.xinantown.townresearch.TownResearchPlugin
 api-version: '1.21.11'
 depend: [Towny, Slimefun]
+softdepend: [XiNanTownDisplay]
 commands:
   townresearch:
     description: Town research admin command
