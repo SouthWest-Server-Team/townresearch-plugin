@@ -15,6 +15,8 @@
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- leaf-api 1.21.11 由工作区内 XiNanTown/libraries/ 提供；用相对路径，两台机器共用，不再写死盘符 -->
+        <leaf.local.repo>file:///${project.basedir}/../XiNanTown/libraries/</leaf.local.repo>
     </properties>
 
     <repositories>
@@ -24,7 +26,7 @@
         </repository>
         <repository>
             <id>leaf-local-api</id>
-            <url>file:///D:/Desktop Box/project/XiNan/XiNanTown/libraries/</url>
+            <url>${leaf.local.repo}</url>
         </repository>
         <repository>
             <id>glaremasters</id>
