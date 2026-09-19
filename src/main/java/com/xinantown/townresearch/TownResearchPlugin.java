@@ -42,11 +42,11 @@ public class TownResearchPlugin extends JavaPlugin {
         lifecycleTaskId = getServer().getScheduler().runTaskTimer(
                 this, lifecycleManager::checkCompletions, 600L, 600L).getTaskId();
 
-        // Boss bar progress display — refresh bars + player move tracking
+        // Boss bar progress display — plot-only periodic scan (no PlayerMoveEvent)
         bossBarManager = new ResearchBossBarManager(this, researchSettings);
         getServer().getPluginManager().registerEvents(bossBarManager, this);
         displayTaskId = getServer().getScheduler().runTaskTimer(
-                this, bossBarManager::refreshBars, 40L, 40L).getTaskId();
+                this, bossBarManager::refreshBars, 20L, 20L).getTaskId();
 
         // Intercept Slimefun PlayerResearchEvent (replaces GUI click interception)
         new ResearchEventListener(this, service, guiListener).register();

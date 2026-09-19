@@ -28,9 +28,32 @@ class ResearchDisplayBusBridgeTest {
         assertEquals("SpawnTown", req.key());
         assertEquals("§b title", req.title());
         assertEquals(0.4, req.progress(), 0.0001);
+        assertEquals(160L, req.ttlTicks());
         assertEquals(ResearchBossBarPresentation.TTL_TICKS, req.ttlTicks());
+        assertTrue(req.ttlTicks() >= 3L * 40L,
+                "TTL must span at least three 40-tick refresh intervals");
         assertEquals(10L, bus.lastNowTick);
         assertTrue(bus.clearSourceCalls.isEmpty());
+    }
+
+    @Test
+    void withBus_repeatedShowRenewsTtlAcrossRefreshIntervals() {
+        RecordingBus bus = new RecordingBus();
+        ResearchDisplayBusBridge bridge = new ResearchDisplayBusBridge(bus);
+
+        bridge.show(PLAYER, "SpawnTown", "title-a", 0.2, 0L);
+        bridge.show(PLAYER, "SpawnTown", "title-b", 0.3, 40L);
+        bridge.show(PLAYER, "SpawnTown", "title-c", 0.4, 80L);
+
+        assertEquals(3, bus.bossBarRequests.size());
+        for (BossBarRequest req : bus.bossBarRequests) {
+            assertEquals(ResearchBossBarPresentation.TTL_TICKS, req.ttlTicks());
+            assertEquals("townresearch", req.source());
+            assertEquals("SpawnTown", req.key());
+        }
+        assertEquals("title-c", bus.bossBarRequests.get(2).title());
+        assertEquals(0.4, bus.bossBarRequests.get(2).progress(), 0.0001);
+        assertEquals(80L, bus.lastNowTick);
     }
 
     @Test
@@ -55,6 +78,21 @@ class ResearchDisplayBusBridgeTest {
         assertEquals(1, legacy.shows.size());
         assertEquals("SpawnTown", legacy.shows.get(0).town());
         assertEquals(List.of(PLAYER), legacy.hides);
+    }
+
+    @Test
+    void withBusAndLegacy_usesBusOnlyNoDualWrite() {
+        RecordingBus bus = new RecordingBus();
+        RecordingLegacy legacy = new RecordingLegacy();
+        ResearchDisplayBusBridge bridge = new ResearchDisplayBusBridge(bus, legacy);
+
+        bridge.show(PLAYER, "SpawnTown", "§b title", 0.4, 10L);
+        bridge.hide(PLAYER);
+
+        assertEquals(1, bus.bossBarRequests.size());
+        assertTrue(legacy.shows.isEmpty(), "bus present → no Bukkit dual-write");
+        assertEquals(List.of(PLAYER), bus.clearSourcePlayers);
+        assertTrue(legacy.hides.isEmpty());
     }
 
     @Test

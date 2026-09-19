@@ -1,12 +1,10 @@
 package com.xinantown.townresearch;
 
 import com.palmergames.bukkit.towny.TownyAPI;
-import com.palmergames.bukkit.towny.object.Town;
 import com.palmergames.bukkit.towny.object.TownBlock;
-import com.xinantown.townresearch.display.LabPresenceDebouncer;
 import com.xinantown.townresearch.display.ResearchBossBarPresentation;
+import com.xinantown.townresearch.display.ResearchBossBarVisibility;
 import com.xinantown.townresearch.display.ResearchDisplayBusBridge;
-import com.xinantown.townresearch.model.ResearchLab;
 import com.xinantown.townresearch.model.ResearchProject;
 import com.xinantown.townresearch.model.TownResearch;
 import org.bukkit.Bukkit;
@@ -16,7 +14,6 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.ArrayList;
@@ -26,13 +23,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 /**
  * Research progress BossBar:
  * <ul>
- *   <li>Prefer DisplayBus owned slot (source=townresearch, key=townName)</li>
- *   <li>Fallback to direct Bukkit BossBar when DisplayBus is missing</li>
- *   <li>Lab enter/leave debounced to reduce PlayerMoveEvent jitter</li>
+ *   <li>Visibility is plot-only: standing on a lab TownBlock is enough</li>
+ *   <li>No PlayerMoveEvent — periodic refresh scans current plots</li>
+ *   <li>Prefer DisplayBus owned slot; dual-write Bukkit BossBar for client visibility</li>
  * </ul>
  */
 public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridge.LegacyBossBarSink {
@@ -41,10 +39,10 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
     private final TownDataManager dataManager;
     private final ResearchSettings settings;
     private final int maxLabs;
-    private final LabPresenceDebouncer debouncer;
     private final ResearchDisplayBusBridge bridge;
+    private final boolean debugLogging;
 
-    /** Legacy path only: townName -> shared BossBar */
+    /** Legacy path: townName -> shared BossBar */
     private final Map<String, BossBar> townBossBars = new HashMap<>();
     /** player -> town currently attached */
     private final Map<UUID, String> playerTown = new HashMap<>();
@@ -54,24 +52,35 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
         this.dataManager = plugin.getDataManager();
         this.settings = settings;
         this.maxLabs = settings.getMaxLabs();
-        this.debouncer = new LabPresenceDebouncer(ResearchBossBarPresentation.LEAVE_GRACE_TICKS);
         this.bridge = ResearchDisplayBusBridge.lookup(plugin.getLogger(), this);
+        this.debugLogging = ResearchBossBarVisibility.debugLoggingEnabled(
+                plugin.getConfig().getBoolean("bossbar-debug", false));
         if (bridge.usesBus()) {
             plugin.getLogger().info("Research BossBar using DisplayBus.");
+        }
+        if (debugLogging) {
+            plugin.getLogger().info("Research BossBar debug logging enabled (plot-only, no move).");
         }
     }
 
     /** Package-visible for tests. */
     ResearchBossBarManager(TownResearchPlugin plugin,
                            ResearchSettings settings,
-                           LabPresenceDebouncer debouncer,
                            ResearchDisplayBusBridge bridge) {
+        this(plugin, settings, bridge, false);
+    }
+
+    /** Package-visible for tests. */
+    ResearchBossBarManager(TownResearchPlugin plugin,
+                           ResearchSettings settings,
+                           ResearchDisplayBusBridge bridge,
+                           boolean debugLogging) {
         this.plugin = plugin;
         this.dataManager = plugin.getDataManager();
         this.settings = settings;
         this.maxLabs = settings.getMaxLabs();
-        this.debouncer = debouncer;
         this.bridge = bridge;
+        this.debugLogging = ResearchBossBarVisibility.debugLoggingEnabled(debugLogging);
     }
 
     public void refreshBars() {
@@ -90,12 +99,17 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
         }
         townBossBars.clear();
         playerTown.clear();
-        debouncer.clearAll();
         bridge.cleanup();
     }
 
+    /**
+     * Plot-only refresh: show while standing on a lab TownBlock with active research;
+     * hide immediately when leaving that plot. No movement listener required.
+     */
     private void updateAll(Map<String, TownResearch> all, long nowMs, long nowTick) {
         Set<String> activeTowns = new HashSet<>();
+        Set<UUID> nearIds = new HashSet<>();
+
         for (var entry : all.entrySet()) {
             String townName = entry.getKey();
             TownResearch tr = entry.getValue();
@@ -108,67 +122,40 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
                 continue;
             }
 
-            Set<Player> nearPlayers = findNearLabPlayers(townName, tr);
-            Set<UUID> nearIds = new HashSet<>();
-            for (Player p : nearPlayers) {
+            for (Player p : findNearLabPlayers(townName, tr)) {
                 UUID id = p.getUniqueId();
                 nearIds.add(id);
-                LabPresenceDebouncer.Decision decision = debouncer.onPresenceChanged(id, true, nowTick);
-                if (decision == LabPresenceDebouncer.Decision.SHOW
-                        || decision == LabPresenceDebouncer.Decision.KEEP) {
-                    showPlayer(id, townName, snap, nowTick);
-                }
-            }
-
-            for (UUID id : new HashSet<>(playerTown.keySet())) {
-                if (nearIds.contains(id)) {
-                    continue;
-                }
-                if (!townName.equals(playerTown.get(id))) {
-                    continue;
-                }
-                LabPresenceDebouncer.Decision leave = debouncer.onPresenceChanged(id, false, nowTick);
-                if (leave == LabPresenceDebouncer.Decision.HIDE
-                        || debouncer.tick(id, nowTick) == LabPresenceDebouncer.Decision.HIDE) {
-                    hidePlayer(id);
-                } else if (debouncer.shouldDisplay(id, nowTick)) {
-                    showPlayer(id, townName, snap, nowTick);
-                }
+                showPlayer(id, townName, snap, nowTick);
             }
         }
 
+        // Plot-only: leave lab chunk → hide immediately (no move listener / grace window).
         for (UUID id : new HashSet<>(playerTown.keySet())) {
-            if (debouncer.tick(id, nowTick) == LabPresenceDebouncer.Decision.HIDE) {
-                hidePlayer(id);
-                continue;
-            }
-            String townName = playerTown.get(id);
-            if (townName == null || !activeTowns.contains(townName)) {
-                debouncer.clear(id);
+            if (!nearIds.contains(id)) {
                 hidePlayer(id);
             }
         }
 
-        if (!bridge.usesBus()) {
-            Set<String> unused = new HashSet<>(townBossBars.keySet());
-            unused.removeAll(activeTowns);
-            for (String tn : unused) {
-                BossBar bar = townBossBars.remove(tn);
-                if (bar != null) {
-                    bar.removeAll();
-                    bar.setVisible(false);
-                }
+        Set<String> unused = new HashSet<>(townBossBars.keySet());
+        unused.removeAll(activeTowns);
+        for (String tn : unused) {
+            BossBar bar = townBossBars.remove(tn);
+            if (bar != null) {
+                bar.removeAll();
+                bar.setVisible(false);
             }
         }
     }
 
     private void showPlayer(UUID playerId, String townName,
                             ResearchBossBarPresentation.Snapshot snap, long nowTick) {
+        debug("show player=" + playerId + " town=" + townName + " progress=" + snap.bossBarProgress());
         bridge.show(playerId, townName, snap.title(), snap.bossBarProgress(), nowTick);
         playerTown.put(playerId, townName);
     }
 
     private void hidePlayer(UUID playerId) {
+        debug("hide player=" + playerId);
         bridge.hide(playerId);
         playerTown.remove(playerId);
     }
@@ -194,15 +181,19 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
         );
     }
 
+    /**
+     * Collect every online player standing on any lab plot of this town's research.
+     * Residency is not required — visitors / townless players are included.
+     */
     private Set<Player> findNearLabPlayers(String townName, TownResearch tr) {
         Set<Player> viewers = new HashSet<>();
-        Town town = TownyAPI.getInstance().getTown(townName);
-        if (town == null) {
-            return viewers;
-        }
-        for (var resident : town.getResidents()) {
-            Player p = Bukkit.getPlayer(resident.getUUID());
-            if (p != null && p.isOnline() && isNearAnyLab(p, tr)) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p == null || !p.isOnline()) {
+                continue;
+            }
+            boolean near = isNearAnyLab(p, tr);
+            debug("nearLab scan town=" + townName + " player=" + p.getName() + " near=" + near);
+            if (ResearchBossBarVisibility.includeOnlineViewer(true, near)) {
                 viewers.add(p);
             }
         }
@@ -210,63 +201,31 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
     }
 
     private boolean isNearAnyLab(Player player, TownResearch tr) {
-        for (ResearchLab lab : tr.getLabs()) {
-            TownBlock tb = TownyAPI.getInstance().getTownBlock(player.getLocation());
-            if (tb != null && tb.getWorld().getName().equals(lab.worldName())
-                    && tb.getX() == lab.townBlockX()
-                    && tb.getZ() == lab.townBlockZ()) {
-                return true;
-            }
+        TownBlock tb = TownyAPI.getInstance().getTownBlock(player.getLocation());
+        if (tb == null) {
+            return false;
         }
-        return false;
-    }
-
-    @EventHandler
-    public void onPlayerMove(PlayerMoveEvent event) {
-        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
-                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) {
-            return;
-        }
-
-        Player player = event.getPlayer();
-        Town town = TownyAPI.getInstance().getTown(player);
-        if (town == null) {
-            return;
-        }
-
-        String townName = town.getName();
-        TownResearch tr = dataManager.load(townName, maxLabs);
-        if (tr == null || tr.getActiveProjects().isEmpty()) {
-            return;
-        }
-
-        long nowTick = Bukkit.getCurrentTick();
-        UUID id = player.getUniqueId();
-        boolean nearLab = isNearAnyLab(player, tr);
-        LabPresenceDebouncer.Decision decision = debouncer.onPresenceChanged(id, nearLab, nowTick);
-
-        if (nearLab || debouncer.shouldDisplay(id, nowTick)) {
-            ResearchBossBarPresentation.Snapshot snap = snapshotFor(tr, System.currentTimeMillis());
-            if (snap != null
-                    && (decision == LabPresenceDebouncer.Decision.SHOW
-                    || decision == LabPresenceDebouncer.Decision.KEEP)) {
-                showPlayer(id, townName, snap, nowTick);
-            }
-        }
-
-        if (!nearLab) {
-            if (decision == LabPresenceDebouncer.Decision.HIDE
-                    || debouncer.tick(id, nowTick) == LabPresenceDebouncer.Decision.HIDE) {
-                hidePlayer(id);
-            }
-        }
+        return ResearchBossBarVisibility.matchesAnyLab(
+                tb.getWorld().getName(),
+                tb.getX(),
+                tb.getZ(),
+                tr.getLabs()
+        );
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        UUID id = event.getPlayer().getUniqueId();
-        debouncer.clear(id);
-        hidePlayer(id);
+        hidePlayer(event.getPlayer().getUniqueId());
+    }
+
+    private void debug(String message) {
+        if (!debugLogging) {
+            return;
+        }
+        Logger logger = plugin != null ? plugin.getLogger() : null;
+        if (logger != null) {
+            logger.info("[BossBarDebug] " + message);
+        }
     }
 
     // ==================== LegacyBossBarSink ====================

@@ -12,6 +12,9 @@ import java.util.logging.Logger;
 /**
  * Soft DisplayBus adapter for research BossBar.
  * When bus is absent, falls back to {@link LegacyBossBarSink}.
+ * When bus is present, only use DisplayBus — do not dual-write Bukkit BossBar,
+ * because PacketEvents would treat those packets as external and cancel them
+ * while an owned research bar is active.
  */
 public final class ResearchDisplayBusBridge {
 

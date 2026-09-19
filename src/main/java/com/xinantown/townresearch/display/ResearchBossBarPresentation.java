@@ -7,8 +7,8 @@ package com.xinantown.townresearch.display;
 public final class ResearchBossBarPresentation {
 
     public static final String SOURCE = "townresearch";
-    /** Refresh timer is 40 ticks; TTL covers one missed refresh + margin. */
-    public static final long TTL_TICKS = 100L;
+    /** Refresh timer is 40 ticks; TTL spans four refresh intervals. */
+    public static final long TTL_TICKS = 160L;
     public static final long LEAVE_GRACE_TICKS = 40L;
 
     private ResearchBossBarPresentation() {

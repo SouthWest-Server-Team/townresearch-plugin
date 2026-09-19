@@ -11,6 +11,9 @@ class ResearchBossBarPresentationTest {
         assertFalse(ResearchBossBarPresentation.shouldDisplay(false, true));
         assertFalse(ResearchBossBarPresentation.shouldDisplay(true, false));
         assertTrue(ResearchBossBarPresentation.shouldDisplay(true, true));
+        // viewerPresent is plot presence, not town residency
+        assertTrue(ResearchBossBarPresentation.shouldDisplay(true, true),
+                "active research + standing on lab plot must display regardless of membership");
     }
 
     @Test
@@ -59,7 +62,9 @@ class ResearchBossBarPresentationTest {
     @Test
     void busConstants_matchFrozenContract() {
         assertEquals("townresearch", ResearchBossBarPresentation.SOURCE);
-        assertTrue(ResearchBossBarPresentation.TTL_TICKS >= 40L);
+        assertEquals(160L, ResearchBossBarPresentation.TTL_TICKS);
+        assertTrue(ResearchBossBarPresentation.TTL_TICKS >= 3L * 40L,
+                "TTL must cover at least three 40-tick refresh intervals");
     }
 
     @Test
