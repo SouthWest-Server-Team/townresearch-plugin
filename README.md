@@ -11,7 +11,7 @@ Towny + Slimefun 集成插件，将 Slimefun 科技研究从个人级改为城�
 - **离城处理**：玩家离开城邦后不再享有该城邦的研究权限
 - **Slimefun 指南集成**：普通成员只读，研究员可执行研究操作
 - **研究所 BossBar**：仅在**站在本城邦研究所地块上**且该城邦研究进行中时显示，离开地块立即隐藏；判定按地块（TownBlock 世界+区块坐标），**不依赖玩家移动事件**（`a9d72eb`）
-- **BossBar 接入 DisplayBus**：装了 XiNanTownDisplay 时只走总线（不再双写 Bukkit BossBar，避免重复下发/抖动），未装时降级为直写 Bukkit BossBar（`93ef0a0`）
+- **BossBar 直写（案 1，2026-09-27 用户拍板）**：插件自己写 Bukkit BossBar，**不再借 DisplayBus**——display 的公开面已在 2026-09-23 随旧总线删掉 BossBar 能力（只剩 ActionBar 三个方法），旧「拿得到服务就只走总线」的分支会让退服/disable 抛 `NoSuchMethodError`（真服日志已见）；display 现行实现也不接管 BOSS_BAR 包，直写不会被拦
 
 ## 命令
 
@@ -43,7 +43,7 @@ bossbar-debug: true
 
 插件以 Towny 城邦作为研究数据和权限边界，以 Slimefun API 获取科技定义和解锁状态。研究任务由调度器推进并持久化，研究所数量参与研究时间计算；研究完成后通过 Slimefun 集成层同步城邦成员的可用科技。BossBar 用于显示研究进度，研究员和城邦银行权限由 Towny/Vault 数据决定。
 
-### BossBar 显示规则（2026-09-25 核实，按 `a9d72eb` 现状）
+### BossBar 显示规则（2026-09-27 复核：按 `a9d72eb` 现状 + 案 1 直写改动）
 
 | 项 | 实际行为 | 依据 |
 |---|---|---|
@@ -52,7 +52,7 @@ bossbar-debug: true
 | 刷新方式 | 每 **20 tick（1 秒）** 周期性扫描全场在线玩家的所在地块；**已删除 `PlayerMoveEvent`**，不再需要「动一下才刷新」 | `TownResearchPlugin.java:48-49`（`runTaskTimer(..., 20L, 20L)`）、`ResearchBossBarManager.java:86-91`（`refreshBars`）→ `:109-141`（`updateAll`） |
 | 离开地块 | **立即隐藏**（无 grace 窗口/防抖延迟） | `ResearchBossBarManager.java:132-137` |
 | 退出游戏 | `PlayerQuitEvent` 隐藏 | `ResearchBossBarManager.java:216-219` |
-| 总线/降级 | 存在 DisplayBus → 只走总线、**不双写** Bukkit BossBar；缺失 → 走 `LegacyBossBarSink` 直写 | `display/ResearchDisplayBusBridge.java`、`ResearchDisplayBusBridgeTest.withBusAndLegacy_usesBusOnlyNoDualWrite` |
+| 下发通道 | **一律直写** Bukkit BossBar（`LegacyBossBarSink`）；不再查询/调用 DisplayBus（其公开面已无 BossBar 能力，调用点会抛 `NoSuchMethodError`）。跨仓零引用由守护测试钉住 | `display/ResearchDisplayBusBridge.java`、`ResearchBossBarDirectWriteContractTest.mainSourcesNoLongerReferenceTheDeletedDisplayBusBossBarApi` |
 | 下发 TTL | `ResearchBossBarPresentation.TTL_TICKS = 160`（≥ 3 个 40-tick 刷新间隔） | `display/ResearchBossBarPresentation.java:11` |
 
 > 上一版 README 只写了「BossBar 用于显示研究进度」，未说明可见范围与刷新机制；这两笔落后提交（`93ef0a0`、`a9d72eb`）正是在改这里：先接入 DisplayBus + 进出防抖，随后又**去掉移动依赖**改为纯地块扫描。
@@ -65,7 +65,7 @@ TownResearchPlugin
   ├── TownResearchCommand       — 命令与权限
   ├── ResearchLifecycleManager  — 研究启动、暂停、恢复和完成
   ├── ResearchBossBarManager    — 研究进度显示（每 20 tick 地块扫描）
-  │     └── display/            — ResearchBossBarVisibility（地块判定）、ResearchDisplayBusBridge（总线/降级）、ResearchBossBarPresentation（文案与 TTL）、LabPresenceDebouncer（遗留未引用）
+  │     └── display/            — ResearchBossBarVisibility（地块判定）、ResearchDisplayBusBridge（直写适配，案 1 后不再查总线）、ResearchBossBarPresentation（文案与 TTL）、LabPresenceDebouncer（遗留未引用）
   ├── ResearchSettings           — 配置加载
   ├── SlimefunBridge             — Slimefun 科技查询与解锁
   └── 数据管理                    — 城邦研究所、研究状态持久化
@@ -78,7 +78,7 @@ TownResearchPlugin
 - Towny
 - Slimefun
 - Maven
-- 软依赖 `XiNanTownDisplay`（DisplayBus 下发 BossBar；未装则自动降级直写 Bukkit BossBar，`src/main/resources/plugin.yml:5-6`）
+- `plugin.yml` 仍写着 `softdepend: [XiNanTownDisplay]`（`src/main/resources/plugin.yml:5-6`），但**代码里已无任何 display 引用**（案 1 后）；`pom.xml:52-57` 那份 `xinantown-display`（`provided`）因此成了惰性依赖 —— 是否连 `softdepend` 一起清掉属独立决定，本轮未动
 
 构建出的 JAR 直接放入服务端 `plugins/` 目录即可。
 
@@ -90,15 +90,17 @@ mvn clean package
 
 ## 测试与构建（真实运行）
 
-2026-09-25，JDK 21，离线 Maven：
+2026-09-27，JDK 26（`--release 21`），离线 Maven 3.9.6：
 
 ```text
-mvn -o -nsu -B clean test
-  Tests run: 38, Failures: 0, Errors: 0, Skipped: 0
+mvn -o -B clean test
+  Tests run: 47, Failures: 0, Errors: 0, Skipped: 0
   BUILD SUCCESS
 ```
 
-分用例：`LabPresenceDebouncerTest` 5、`ResearchBossBarPresentationTest` 6、`ResearchBossBarVisibilityTest` 5、`ResearchDisplayBusBridgeTest` 6、`PluginYmlDisplayBusTest` 1、`TownDataManagerTest` 3、`TownResearchTest` 12。
+分用例：`ResearchBossBarDirectWriteContractTest` 6（案 1 守护）、`ResearchDisplayBusBridgeTest` 9（直写契约）、`LabPresenceDebouncerTest` 5、`ResearchBossBarPresentationTest` 6、`ResearchBossBarVisibilityTest` 5、`PluginYmlDisplayBusTest` 1、`TownDataManagerTest` 3、`TownResearchTest` 12。
+
+> 案 1 之前这份测试**连编译都过不去**：`mvn clean test` 在 `ResearchDisplayBusBridge.java:[4]`（`com.xinantown.display.core.BossBarRequest` 不存在）、`:[71]`、`:[88]`（`clearSource` 不存在）上直接报「找不到符号」。增量编译残留的旧 class 曾让 `mvn test` 变成 4 个运行期错误（`NoClassDefFoundError: com/xinantown/display/core/BossBarRequest` ×3、`NoSuchMethodError: ...DisplayBusService.clearSource` ×1）—— 这正是真服日志里那条退服报错的同一形状。
 
 ## 分支与推送状态
 
@@ -119,3 +121,4 @@ mvn -o -nsu -B clean test
   - `93ef0a0` *研究 BossBar 接入 DisplayBus 并增加进出防抖* — 新增 `display/` 子模块（`ResearchDisplayBusBridge`、`ResearchBossBarPresentation`、`LabPresenceDebouncer`），`plugin.yml` 增 `softdepend: XiNanTownDisplay`，缺失时降级直写。
   - `a9d72eb` *研究 BossBar 判定改为仅按研究所地块并去掉移动依赖* — 删掉 `PlayerMoveEvent` 与防抖，改每 20 tick 地块扫描、离开即隐藏；有总线时不再双写；TTL 由 100 改 160；新增 `bossbar-debug` 配置与 `ResearchBossBarVisibility` + 5 个单测。
 - 上表的测试数与分支状态是本次实测结果，**不是**历史承诺值。
+- 2026-09-27 案 1（用户拍板）：**收回 DisplayBus 接入** —— `ResearchDisplayBusBridge` 删掉 `core.BossBarRequest` import 与 `requestBossBar` / `clearSource` 两个调用点，不再查询服务，`usesBus()` 移除；`show`/`hide`/`cleanup` 一律落到直写 `LegacyBossBarSink`。新增 `ResearchBossBarDirectWriteContractTest` 6 条结构性守护（display 零引用、红线①不进 ActionBar、红线②不做居民判定、非居民站在 lab 地块仍可见、退服仍走 `hide`）。红线不变：研究进度只走 BossBar。
