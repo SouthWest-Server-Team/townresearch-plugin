@@ -30,7 +30,7 @@ import java.util.logging.Logger;
  * <ul>
  *   <li>Visibility is plot-only: standing on a lab TownBlock is enough</li>
  *   <li>No PlayerMoveEvent — periodic refresh scans current plots</li>
- *   <li>Prefer DisplayBus owned slot; dual-write Bukkit BossBar for client visibility</li>
+ *   <li>直写 Bukkit BossBar（案 1）：不再借 DisplayBus（其公开面已无 BossBar 能力，旧「有服务就走总线」分支就是 NoSuchMethodError 来源）</li>
  * </ul>
  */
 public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridge.LegacyBossBarSink {
@@ -52,12 +52,12 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
         this.dataManager = plugin.getDataManager();
         this.settings = settings;
         this.maxLabs = settings.getMaxLabs();
-        this.bridge = ResearchDisplayBusBridge.lookup(plugin.getLogger(), this);
+        this.bridge = ResearchDisplayBusBridge.lookup(this);
         this.debugLogging = ResearchBossBarVisibility.debugLoggingEnabled(
                 plugin.getConfig().getBoolean("bossbar-debug", false));
-        if (bridge.usesBus()) {
-            plugin.getLogger().info("Research BossBar using DisplayBus.");
-        }
+        // 案 1：BossBar 一律直写（display 公开面已无 BossBar 能力）。
+        // 旧「Research BossBar using DisplayBus.」那行随总线一起消失；这里保留一行当前口径便于排障。
+        plugin.getLogger().info("Research BossBar: direct Bukkit BossBar write.");
         if (debugLogging) {
             plugin.getLogger().info("Research BossBar debug logging enabled (plot-only, no move).");
         }
@@ -85,9 +85,8 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
 
     public void refreshBars() {
         long nowMs = System.currentTimeMillis();
-        long nowTick = Bukkit.getCurrentTick();
         Map<String, TownResearch> all = dataManager.loadAll(maxLabs);
-        updateAll(all, nowMs, nowTick);
+        updateAll(all, nowMs);
     }
 
     public void cleanup() {
@@ -106,7 +105,7 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
      * Plot-only refresh: show while standing on a lab TownBlock with active research;
      * hide immediately when leaving that plot. No movement listener required.
      */
-    private void updateAll(Map<String, TownResearch> all, long nowMs, long nowTick) {
+    private void updateAll(Map<String, TownResearch> all, long nowMs) {
         Set<String> activeTowns = new HashSet<>();
         Set<UUID> nearIds = new HashSet<>();
 
@@ -125,7 +124,7 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
             for (Player p : findNearLabPlayers(townName, tr)) {
                 UUID id = p.getUniqueId();
                 nearIds.add(id);
-                showPlayer(id, townName, snap, nowTick);
+                showPlayer(id, townName, snap);
             }
         }
 
@@ -148,9 +147,9 @@ public class ResearchBossBarManager implements Listener, ResearchDisplayBusBridg
     }
 
     private void showPlayer(UUID playerId, String townName,
-                            ResearchBossBarPresentation.Snapshot snap, long nowTick) {
+                            ResearchBossBarPresentation.Snapshot snap) {
         debug("show player=" + playerId + " town=" + townName + " progress=" + snap.bossBarProgress());
-        bridge.show(playerId, townName, snap.title(), snap.bossBarProgress(), nowTick);
+        bridge.show(playerId, townName, snap.title(), snap.bossBarProgress());
         playerTown.put(playerId, townName);
     }
 
