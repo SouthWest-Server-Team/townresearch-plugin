@@ -119,6 +119,10 @@ public class ResearchCommand implements CommandExecutor {
             return true;
         }
 
+        if (tr.isPaused(lab) && tr.getActiveProjects().containsKey(lab)) {
+            player.sendMessage("§c此研究所同时有暂停和进行中的项目，不能移除以免覆盖；两个项目均保留。");
+            return true;
+        }
         tr.removeLab(lab);
         Town t = TownyAPI.getInstance().getTown(player);
         plugin.getDataManager().save(t.getName(), tr);
@@ -258,6 +262,10 @@ public class ResearchCommand implements CommandExecutor {
             return true;
         }
 
+        if (tr.isPaused(lab)) {
+            player.sendMessage("§c此研究所已有暂停项目，不能覆盖；两个项目均保留。");
+            return true;
+        }
         tr.pauseProject(lab);
         plugin.getDataManager().save(town.getName(), tr);
         player.sendMessage("§a研究项目已暂停。");
@@ -280,6 +288,10 @@ public class ResearchCommand implements CommandExecutor {
             return true;
         }
 
+        if (tr.getActiveProjects().containsKey(lab)) {
+            player.sendMessage("§c此研究所已有进行中的项目，暂不能恢复；两个项目均保留。");
+            return true;
+        }
         tr.resumeProject(lab);
         plugin.getDataManager().save(town.getName(), tr);
         player.sendMessage("§a研究项目已恢复！");

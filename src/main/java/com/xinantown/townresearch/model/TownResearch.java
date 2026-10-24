@@ -31,6 +31,7 @@ public class TownResearch {
     public boolean canAddLab() { return labs.size() < maxLabs; }
 
     public void addLab(ResearchLab lab) {
+        if (labs.contains(lab)) return;
         if (!canAddLab()) throw new IllegalStateException("Max labs (" + maxLabs + ") reached for " + townName);
         labs.add(lab);
         // Resume paused project if this lab was previously paused
@@ -44,6 +45,7 @@ public class TownResearch {
     }
 
     public void removeLab(ResearchLab lab) {
+        requirePauseSlot(lab);
         labs.remove(lab);
         // Pause instead of discarding
         ResearchProject paused = activeProjects.remove(lab);
@@ -55,11 +57,14 @@ public class TownResearch {
     public Map<ResearchLab, ResearchProject> getActiveProjects() { return Collections.unmodifiableMap(activeProjects); }
 
     public void pauseProject(ResearchLab lab) {
+        requirePauseSlot(lab);
         ResearchProject p = activeProjects.remove(lab);
         if (p != null) pausedProjects.put(lab, p);
     }
 
     public void resumeProject(ResearchLab lab) {
+        if (!labs.contains(lab)) throw new IllegalStateException("Lab not registered");
+        if (activeProjects.containsKey(lab)) throw new IllegalStateException("Lab already has an active project");
         ResearchProject p = pausedProjects.remove(lab);
         if (p != null) {
             long elapsed = System.currentTimeMillis() - p.startedAt();
@@ -71,7 +76,21 @@ public class TownResearch {
 
     public boolean isPaused(ResearchLab lab) { return pausedProjects.containsKey(lab); }
 
+    private void requirePauseSlot(ResearchLab lab) {
+        if (activeProjects.containsKey(lab) && pausedProjects.containsKey(lab))
+            throw new IllegalStateException("Lab already has a paused project; both projects retained");
+    }
+
     public Map<ResearchLab, ResearchProject> getPausedProjects() { return Collections.unmodifiableMap(pausedProjects); }
+
+    /** Restore paused records, including projects whose lab was removed while they were paused. */
+    public void restorePausedProject(ResearchLab lab, String sfKey, long startedAt, long durationMinutes) {
+        if (sfKey == null || sfKey.isBlank() || startedAt < 0) {
+            throw new IllegalArgumentException("Invalid paused project");
+        }
+        if (pausedProjects.containsKey(lab)) throw new IllegalArgumentException("Duplicate paused lab");
+        pausedProjects.put(lab, new ResearchProject(sfKey, startedAt, durationMinutes));
+    }
 
     public void startProject(ResearchLab lab, String sfKey, long durationMinutes) {
         if (!labs.contains(lab)) throw new IllegalArgumentException("Lab not registered for " + townName);
