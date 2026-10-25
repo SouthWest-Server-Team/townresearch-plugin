@@ -43,6 +43,8 @@
         </dependency>
         <dependency><groupId>net.kyori</groupId><artifactId>adventure-api</artifactId><version>4.26.1</version><scope>provided</scope></dependency>
         <dependency><groupId>net.md-5</groupId><artifactId>bungeecord-chat</artifactId><version>1.21-R0.2-deprecated+build.21</version><scope>provided</scope></dependency>
+        <!-- 前置：本仓依赖 com.xinantown:xinantown-display:0.1.0-SNAPSHOT（无公共仓库）。
+             全新 clone 构建前须先在同一工作区执行：cd xinantown-display && mvn -B install -DskipTests -->
         <dependency>
             <groupId>com.xinantown</groupId>
             <artifactId>xinantown-display</artifactId>
