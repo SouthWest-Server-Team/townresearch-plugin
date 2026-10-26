@@ -25,6 +25,14 @@ public class ResearchService {
      * Attempt to start a research project. Returns null on success, or an error message.
      */
     public String startResearch(Town town, Player player, String sfKey) {
+        try {
+            return start(town, player, sfKey);
+        } catch (TownDataManager.StorageException e) {
+            return e.playerMessage();
+        }
+    }
+
+    private String start(Town town, Player player, String sfKey) {
         TownResearch tr = dataManager.load(town.getName(), settings.getMaxLabs());
         if (tr == null) tr = new TownResearch(town.getName(), settings.getMaxLabs());
 

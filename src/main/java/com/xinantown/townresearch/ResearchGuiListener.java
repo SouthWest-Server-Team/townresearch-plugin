@@ -29,21 +29,20 @@ public class ResearchGuiListener {
     }
 
     public void addResearcher(String townName, UUID uuid) {
-        Set<UUID> set = researchers.computeIfAbsent(townName.toLowerCase(), k -> new HashSet<>());
-        set.add(uuid);
         TownResearch tr = dataManager.load(townName, maxLabs);
         if (tr == null) tr = new TownResearch(townName, maxLabs);
         tr.addResearcher(uuid);
         dataManager.save(townName, tr);
+        researchers.computeIfAbsent(townName.toLowerCase(), k -> new HashSet<>()).add(uuid);
     }
 
     public void removeResearcher(String townName, UUID uuid) {
-        Set<UUID> set = researchers.get(townName.toLowerCase());
-        if (set != null) set.remove(uuid);
         TownResearch tr = dataManager.load(townName, maxLabs);
         if (tr == null) tr = new TownResearch(townName, maxLabs);
         tr.removeResearcher(uuid);
         dataManager.save(townName, tr);
+        Set<UUID> set = researchers.get(townName.toLowerCase());
+        if (set != null) set.remove(uuid);
     }
 
     public boolean isResearcher(String townName, Player player) {

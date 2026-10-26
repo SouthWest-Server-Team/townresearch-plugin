@@ -14,6 +14,15 @@ import java.util.*;
  */
 public class TownDataManager {
 
+    /** A refused read/write; callers must not report success or automatically retry payment. */
+    public static final class StorageException extends IllegalStateException {
+        private StorageException(String message, Throwable cause) { super(message, cause); }
+
+        public String playerMessage() {
+            return "§c研究数据读取或保存失败，本次操作未确认完成。请联系管理员核对，勿重复付费操作。";
+        }
+    }
+
     private final File dataFolder;
     private final java.util.logging.Logger logger;
     private final Map<String, TownResearch> cache = new java.util.LinkedHashMap<>();
@@ -28,7 +37,12 @@ public class TownDataManager {
     public TownResearch load(String townName, int maxLabs) {
         String key = townName.toLowerCase();
         TownResearch cached = cache.get(key);
-        if (cached != null) return cached;
+        if (cached != null) {
+            // A cached object must not bypass a file replaced with an unreadable/future version.
+            File current = fileFor(townName);
+            if (current.exists()) readStorage(townName, current, Integer.MAX_VALUE);
+            return cached;
+        }
 
         TownResearch tr = loadFromDisk(townName, maxLabs);
         if (tr != null) cache.put(key, tr);
@@ -36,7 +50,12 @@ public class TownDataManager {
     }
 
     public void save(String townName, TownResearch tr) {
-        saveToDisk(townName, tr);
+        try {
+            saveToDisk(townName, tr);
+        } catch (StorageException e) {
+            cache.remove(townName.toLowerCase());
+            throw e;
+        }
         cache.put(townName.toLowerCase(), tr);
     }
 
@@ -46,7 +65,8 @@ public class TownDataManager {
 
     private void saveToDisk(String townName, TownResearch tr) {
         File current = fileFor(townName);
-        if (current.exists()) loadFromConfig(townName, readConfig(current), Integer.MAX_VALUE);
+        // Parse before overwriting: this protects the original, it is not a redundant read.
+        if (current.exists()) readStorage(townName, current, Integer.MAX_VALUE);
         YamlConfiguration cfg = new YamlConfiguration();
         cfg.set("storage_version", 1);
         List<Map<String, Object>> labList = new ArrayList<>();
@@ -102,6 +122,7 @@ public class TownDataManager {
         try { cfg.save(fileFor(townName)); } catch (IOException e) {
             logger.log(java.util.logging.Level.SEVERE,
                     "Failed to save research data for " + townName, e);
+            throw new StorageException("Research save failed: " + fileFor(townName).getName(), e);
         }
     }
 
@@ -113,7 +134,7 @@ public class TownDataManager {
             YamlConfiguration cfg = readConfig(f);
             String name = cfg.getString("town_name");
             if (name == null) continue;
-            TownResearch tr = loadFromConfig(name, cfg, defaultMaxLabs);
+            TownResearch tr = readStorage(name, f, defaultMaxLabs);
             if (tr != null) result.put(name, tr);
         }
         return result;
@@ -122,8 +143,16 @@ public class TownDataManager {
     private TownResearch loadFromDisk(String townName, int maxLabs) {
         File f = fileFor(townName);
         if (!f.exists()) return null;
-        YamlConfiguration cfg = readConfig(f);
-        return loadFromConfig(townName, cfg, maxLabs);
+        return readStorage(townName, f, maxLabs);
+    }
+
+    private TownResearch readStorage(String townName, File file, int maxLabs) {
+        try {
+            return loadFromConfig(townName, readConfig(file), maxLabs);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            logger.log(java.util.logging.Level.WARNING, "Research file refused: " + file.getName(), e);
+            throw new StorageException("Research file refused: " + file.getName(), e);
+        }
     }
 
     private YamlConfiguration readConfig(File file) {
