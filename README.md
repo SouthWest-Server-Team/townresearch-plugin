@@ -102,6 +102,20 @@ mvn -o -B clean test
 
 > 案 1 之前这份测试**连编译都过不去**：`mvn clean test` 在 `ResearchDisplayBusBridge.java:[4]`（`com.xinantown.display.core.BossBarRequest` 不存在）、`:[71]`、`:[88]`（`clearSource` 不存在）上直接报「找不到符号」。增量编译残留的旧 class 曾让 `mvn test` 变成 4 个运行期错误（`NoClassDefFoundError: com/xinantown/display/core/BossBarRequest` ×3、`NoSuchMethodError: ...DisplayBusService.clearSource` ×1）—— 这正是真服日志里那条退服报错的同一形状。
 
+## 存档拒绝与玩家反馈
+
+未知存档版本或损坏记录会拒绝读写并记录文件名，命令与 Slimefun 研究入口会提示
+“操作未确认完成，请联系管理员核对，勿重复付费操作”，不会继续发送成功提示。
+已缓存的城邦在使用前也检查现有文件，避免坏档在扣费后才被发现。
+实际写盘失败会上报并清掉该城缓存；已发生的扣费不自动重试或退款，须核对银行流水。
+这项反馈不承诺外部银行与 YAML 原子提交，也不宣称所有写入失败都能保留完整旧文件。
+
+同一研究所同时有暂停 A 与进行中的 B 时保留两者，等待 B 完成后恢复 A；若 B 异常
+无法结束，请联系管理员核对。没有新增强制删除或自动退款命令。
+
+新增错误反馈回归使用 Mockito，POM 显式补齐与 Player/JavaPlugin 方法签名对应的
+MiniMessage、Adventure 日志适配、SLF4J/Log4j 测试依赖；既有 provided 不改变。
+
 ## 分支与推送状态
 
 （2026-09-25 以本地 remote-tracking ref 核实，未执行任何 git 写操作）

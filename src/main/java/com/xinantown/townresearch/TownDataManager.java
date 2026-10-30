@@ -14,6 +14,15 @@ import java.util.*;
  */
 public class TownDataManager {
 
+    /** A refused read/write; callers must not report success or automatically retry payment. */
+    public static final class StorageException extends IllegalStateException {
+        private StorageException(String message, Throwable cause) { super(message, cause); }
+
+        public String playerMessage() {
+            return "§c研究数据读取或保存失败，本次操作未确认完成。请联系管理员核对，勿重复付费操作。";
+        }
+    }
+
     private final File dataFolder;
     private final java.util.logging.Logger logger;
     private final Map<String, TownResearch> cache = new java.util.LinkedHashMap<>();
@@ -28,7 +37,12 @@ public class TownDataManager {
     public TownResearch load(String townName, int maxLabs) {
         String key = townName.toLowerCase();
         TownResearch cached = cache.get(key);
-        if (cached != null) return cached;
+        if (cached != null) {
+            // A cached object must not bypass a file replaced with an unreadable/future version.
+            File current = fileFor(townName);
+            if (current.exists()) readStorage(townName, current, Integer.MAX_VALUE);
+            return cached;
+        }
 
         TownResearch tr = loadFromDisk(townName, maxLabs);
         if (tr != null) cache.put(key, tr);
@@ -36,8 +50,13 @@ public class TownDataManager {
     }
 
     public void save(String townName, TownResearch tr) {
+        try {
+            saveToDisk(townName, tr);
+        } catch (StorageException e) {
+            cache.remove(townName.toLowerCase());
+            throw e;
+        }
         cache.put(townName.toLowerCase(), tr);
-        saveToDisk(townName, tr);
     }
 
     private File fileFor(String townName) {
@@ -45,7 +64,11 @@ public class TownDataManager {
     }
 
     private void saveToDisk(String townName, TownResearch tr) {
+        File current = fileFor(townName);
+        // Parse before overwriting: this protects the original, it is not a redundant read.
+        if (current.exists()) readStorage(townName, current, Integer.MAX_VALUE);
         YamlConfiguration cfg = new YamlConfiguration();
+        cfg.set("storage_version", 1);
         List<Map<String, Object>> labList = new ArrayList<>();
         for (ResearchLab lab : tr.getLabs()) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -73,6 +96,19 @@ public class TownDataManager {
         }
         cfg.set("active_projects", projectList);
 
+        List<Map<String, Object>> pausedList = new ArrayList<>();
+        for (var e : tr.getPausedProjects().entrySet()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("lab_world", e.getKey().worldName());
+            m.put("lab_x", e.getKey().townBlockX());
+            m.put("lab_z", e.getKey().townBlockZ());
+            m.put("key", e.getValue().sfKey());
+            m.put("started", e.getValue().startedAt());
+            m.put("duration", e.getValue().durationMinutes());
+            pausedList.add(m);
+        }
+        cfg.set("paused_projects", pausedList);
+
         List<String> researcherList = new ArrayList<>();
         for (UUID id : tr.getResearchers()) researcherList.add(id.toString());
         cfg.set("researchers", researcherList);
@@ -86,6 +122,7 @@ public class TownDataManager {
         try { cfg.save(fileFor(townName)); } catch (IOException e) {
             logger.log(java.util.logging.Level.SEVERE,
                     "Failed to save research data for " + townName, e);
+            throw new StorageException("Research save failed: " + fileFor(townName).getName(), e);
         }
     }
 
@@ -94,10 +131,10 @@ public class TownDataManager {
         File[] files = dataFolder.listFiles((d, n) -> n.endsWith(".yml"));
         if (files == null) return result;
         for (File f : files) {
-            YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
+            YamlConfiguration cfg = readConfig(f);
             String name = cfg.getString("town_name");
             if (name == null) continue;
-            TownResearch tr = loadFromConfig(name, cfg, defaultMaxLabs);
+            TownResearch tr = readStorage(name, f, defaultMaxLabs);
             if (tr != null) result.put(name, tr);
         }
         return result;
@@ -106,11 +143,32 @@ public class TownDataManager {
     private TownResearch loadFromDisk(String townName, int maxLabs) {
         File f = fileFor(townName);
         if (!f.exists()) return null;
-        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
-        return loadFromConfig(townName, cfg, maxLabs);
+        return readStorage(townName, f, maxLabs);
+    }
+
+    private TownResearch readStorage(String townName, File file, int maxLabs) {
+        try {
+            return loadFromConfig(townName, readConfig(file), maxLabs);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            logger.log(java.util.logging.Level.WARNING, "Research file refused: " + file.getName(), e);
+            throw new StorageException("Research file refused: " + file.getName(), e);
+        }
+    }
+
+    private YamlConfiguration readConfig(File file) {
+        var cfg = new YamlConfiguration();
+        try { cfg.load(file); }
+        catch (IOException | org.bukkit.configuration.InvalidConfigurationException e) {
+            throw new IllegalStateException("Research file unreadable; preserved: " + file.getName(), e);
+        }
+        return cfg;
     }
 
     private TownResearch loadFromConfig(String townName, YamlConfiguration cfg, int maxLabs) {
+        Object version = cfg.get("storage_version");
+        if (version != null && (!(version instanceof Number n) || n.doubleValue() != 1)) {
+            throw new IllegalStateException("Unsupported research storage_version for " + townName);
+        }
         TownResearch tr = new TownResearch(townName, maxLabs);
 
         List<Map<?, ?>> labList = cfg.getMapList("labs");
@@ -153,7 +211,33 @@ public class TownDataManager {
             }
         }
 
+        Object paused = cfg.get("paused_projects");
+        if (paused != null) {
+            if (!(paused instanceof List<?> records)) throw new IllegalStateException("Invalid paused_projects for " + townName);
+            for (Object record : records) {
+                if (!(record instanceof Map<?, ?> m)
+                        || !(m.get("lab_world") instanceof String world)
+                        || !(m.get("key") instanceof String key)) {
+                    throw new IllegalStateException("Invalid paused project for " + townName);
+                }
+                ResearchLab lab = new ResearchLab(world, strictInt(m.get("lab_x")), strictInt(m.get("lab_z")));
+                tr.restorePausedProject(lab, key, strictLong(m.get("started")), strictLong(m.get("duration")));
+            }
+        }
         return tr;
+    }
+
+    private long strictLong(Object value) {
+        if (!(value instanceof Number n) || !Double.isFinite(n.doubleValue()) || n.doubleValue() != n.longValue()) {
+            throw new IllegalStateException("Invalid paused project integer");
+        }
+        return n.longValue();
+    }
+
+    private int strictInt(Object value) {
+        long number = strictLong(value);
+        if (number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) throw new IllegalStateException("Paused lab coordinate out of range");
+        return (int) number;
     }
 
     private int parseInt(Object o) {

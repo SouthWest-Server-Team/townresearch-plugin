@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.util.logging.Logger;
 import java.util.Map;
+import java.nio.file.Files;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,6 +16,61 @@ class TownDataManagerTest {
 
     @TempDir
     Path tempDir;
+
+    private TownDataManager fresh() {
+        return new TownDataManager(tempDir.toFile(), Logger.getLogger("test"));
+    }
+
+    @Test
+    void pausedAndActiveProjectsSurviveRealYamlRestart() {
+        var tr = new TownResearch("Town", 5);
+        var pausedLab = new ResearchLab("world", -3, 7);
+        var activeLab = new ResearchLab("world", 9, 10);
+        tr.addLab(pausedLab);
+        tr.addLab(activeLab);
+        tr.resumeProject(pausedLab, "sf:paused", 1234L, 120L);
+        tr.pauseProject(pausedLab);
+        tr.resumeProject(activeLab, "sf:active", 5678L, 60L);
+        fresh().save("Town", tr);
+        var loaded = fresh().load("Town", 5);
+        assertEquals(tr.getPausedProjects(), loaded.getPausedProjects());
+        assertEquals(tr.getActiveProjects(), loaded.getActiveProjects());
+        assertTrue(loaded.isPaused(pausedLab));
+    }
+
+    @Test
+    void removedLabImplicitPauseSurvivesRestart() {
+        var tr = new TownResearch("Town", 5);
+        var lab = new ResearchLab("world", 1, 2);
+        tr.addLab(lab);
+        tr.resumeProject(lab, "sf:removed", 999, 30);
+        tr.removeLab(lab);
+        fresh().save("Town", tr);
+        var loaded = fresh().load("Town", 5);
+        assertFalse(loaded.getLabs().contains(lab));
+        assertEquals(tr.getPausedProjects(), loaded.getPausedProjects());
+    }
+
+    @Test
+    void legacyMissingPausedFieldDoesNotInventProjects() throws Exception {
+        Files.writeString(tempDir.resolve("town.yml"), "town_name: Town\nlabs: []\nactive_projects: []\n");
+        assertTrue(fresh().load("Town", 5).getPausedProjects().isEmpty());
+    }
+
+    @Test
+    void unknownVersionAndMalformedPausedRecordsPreserveFile() throws Exception {
+        for (String yaml : java.util.List.of(
+                "town_name: Town\nstorage_version: 2\npaused_projects: []\n",
+                "town_name: [broken\n",
+                "town_name: Town\nstorage_version: 1\npaused_projects: broken\n",
+                "town_name: Town\nstorage_version: 1\npaused_projects:\n- {lab_world: world, lab_x: 1, lab_z: 2, key: sf:x, started: bad, duration: 30}\n",
+                "town_name: Town\nstorage_version: 1\npaused_projects:\n- &p {lab_world: world, lab_x: 1, lab_z: 2, key: sf:x, started: 0, duration: 30}\n- *p\n")) {
+            Files.writeString(tempDir.resolve("town.yml"), yaml);
+            assertThrows(RuntimeException.class, () -> fresh().load("Town", 5));
+            assertThrows(RuntimeException.class, () -> fresh().save("Town", new TownResearch("Town", 5)));
+            assertEquals(yaml, Files.readString(tempDir.resolve("town.yml")));
+        }
+    }
 
     @Test
     void saveAndLoad_roundtrip() {

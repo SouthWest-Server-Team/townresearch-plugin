@@ -11,6 +11,29 @@ import static org.junit.jupiter.api.Assertions.*;
 class TownResearchTest {
 
     @Test
+    void resumePauseAndRemoveCannotOverwriteEitherProject() {
+        var tr = new TownResearch("Town", 5);
+        var lab = new ResearchLab("world", 1, 2);
+        tr.addLab(lab);
+        tr.startProject(lab, "sf:A", 60);
+        tr.pauseProject(lab);
+        var a = tr.getPausedProjects().get(lab);
+        tr.startProject(lab, "sf:B", 60);
+        var b = tr.getActiveProjects().get(lab);
+        assertThrows(IllegalStateException.class, () -> tr.resumeProject(lab));
+        assertThrows(IllegalStateException.class, () -> tr.pauseProject(lab));
+        assertThrows(IllegalStateException.class, () -> tr.removeLab(lab));
+        tr.addLab(lab); // duplicate registration cannot auto-resume over B
+        assertEquals(a, tr.getPausedProjects().get(lab));
+        assertEquals(b, tr.getActiveProjects().get(lab));
+        assertTrue(tr.getLabs().contains(lab));
+        tr.cancelProject(lab);
+        tr.resumeProject(lab);
+        assertEquals("sf:A", tr.getActiveProjects().get(lab).sfKey());
+        assertTrue(tr.getPausedProjects().isEmpty());
+    }
+
+    @Test
     void newTownResearch_hasNoLabs() {
         TownResearch tr = new TownResearch("SpawnTown", 5);
         assertTrue(tr.getLabs().isEmpty());
